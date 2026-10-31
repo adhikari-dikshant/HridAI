@@ -143,7 +143,7 @@ flowchart TD
   E --> F[5 s windows to log-mel spectrograms]
   F --> G[Audio model: fine-tuned CardioPHON / CNN]
   A -.patient data.-> H
-  G --> H[Fusion: audio score + age, sex, height, weight]
+  G --> H[Optional fusion, off for MVP: audio score + age, sex, height, weight]
   H --> I[Result: normal / needs check-up / unclear]
   I --> J[Gemini: explanation in Hindi + English]
   J --> K[RN app: result screen, share, history]
@@ -165,12 +165,12 @@ flowchart TD
 <tr><td>Mobile</td><td>React Native + Expo + TypeScript</td><td><code>expo-audio</code> for recording, <code>expo-document-picker</code> / <code>expo-image-picker</code> for reports</td></tr>
 <tr><td>Auth</td><td>Firebase Auth (anonymous sign-in for demo)</td><td>App sends Firebase ID token as Bearer token</td></tr>
 <tr><td>Backend</td><td>Python 3.11, FastAPI, Uvicorn</td><td><code>python-multipart</code>, <code>pydantic-settings</code></td></tr>
-<tr><td>Audio</td><td>ffmpeg, librosa, scipy, soundfile, numpy</td><td>ffmpeg installed in Docker image</td></tr>
-<tr><td>ML</td><td>PyTorch (CPU at inference)</td><td>CardioPHON pretrained model if usable, else small CNN baseline</td></tr>
-<tr><td>LLM</td><td>Gemini API (<code>google-genai</code> SDK)</td><td>Flash-class model; pin exact model ID in config</td></tr>
+<tr><td>Audio</td><td>ffmpeg, scipy, numpy</td><td>ffmpeg installed in Docker image</td></tr>
+<tr><td>ML</td><td>PyTorch for training, ONNX Runtime (CPU) at inference</td><td>CardioPHON pretrained model if usable, else small CNN baseline</td></tr>
+<tr><td>LLM</td><td>Gemini on Vertex AI (<code>google-genai</code> SDK)</td><td>Flash-class model, no API key; pin exact model ID in config</td></tr>
 <tr><td>Database</td><td>Cloud Firestore</td><td>Via <code>firebase-admin</code></td></tr>
 <tr><td>Files</td><td>Cloud Storage</td><td>Audio + reports</td></tr>
-<tr><td>Hosting</td><td>Google Cloud Run (asia-south1)</td><td>Model baked into container or loaded from GCS at startup</td></tr>
+<tr><td>Hosting</td><td>Google Cloud Run (asia-south1)</td><td>Model baked into the container</td></tr>
 <tr><td>Training</td><td>Colab / Vertex AI Workbench</td><td>Vertex AI endpoint optional; in-container model is fine</td></tr>
 <tr><td>CI/CD</td><td>Cloud Build or GitHub Actions</td><td>Nice to have</td></tr>
 </table></div>
@@ -408,8 +408,9 @@ screenings/{screening_id}/reports/{report_id}
 gs://&lt;bucket&gt;/screenings/{screening_id}/recordings/{recording_id}.wav   // converted, 2 kHz mono
 gs://&lt;bucket&gt;/screenings/{screening_id}/reports/{report_id}.{jpg|png|pdf}
 gs://&lt;bucket&gt;/screenings/{screening_id}/heatmaps/{location}.png         // stretch
-gs://&lt;bucket&gt;/models/{model_version}/model.pt</code></pre>
+gs://&lt;project&gt;-ml/models/{model_version}/                               // separate bucket; runtime has no access</code></pre>
 <p>Security rules: <b>deny all client reads/writes</b>. Only the backend (Admin SDK) touches Firestore/Storage. Heatmaps are served through short-lived signed URLs.</p>
+<p>The data bucket has soft delete off, so deleting a screening really deletes its audio, and a 30-day lifecycle rule on <code>screenings/</code> as a backstop. Rejected recordings keep metadata only; their audio is deleted after the quality check.</p>
 <p><b>No names, phone numbers or addresses are stored.</b></p>
 
 <!-- ============================== -->
@@ -417,26 +418,27 @@ gs://&lt;bucket&gt;/models/{model_version}/model.pt</code></pre>
 <p>One module, <code>backend/app/services/audio.py</code>, used by both the API and the training code. All numbers below are <b>starting values</b>; whatever is used in training must be used in inference. They live in one config object.</p>
 <div class="tbl"><table>
 <tr><th>Step</th><th>What</th><th>Starting value</th></tr>
-<tr><td>1. Decode</td><td>ffmpeg → mono float32 PCM</td><td><code>ffmpeg -i in.m4a -ac 1 -f wav</code></td></tr>
+<tr><td>1. Decode</td><td>ffmpeg → mono float32 PCM, from a temp file (not stdin)</td><td><code>ffmpeg -protocol_whitelist file -t 35 -i in.m4a -ac 1 -f f32le pipe:1</code>. Empty output counts as <code>unsupported_audio</code>.</td></tr>
 <tr><td>2. Trim</td><td>Drop first and last 1 s (handling noise when placing/removing phone)</td><td>1.0 s each side</td></tr>
 <tr><td>3. Resample</td><td>To one target rate for all data</td><td><code>TARGET_SR = 2000</code> Hz (PhysioNet 2016 is 2 kHz, CirCor is 4 kHz). Use the pretrained model's rate if it needs a different one.</td></tr>
 <tr><td>4. Bandpass</td><td>Butterworth, zero-phase (<code>scipy.signal.butter</code> + <code>sosfiltfilt</code>)</td><td>Order 4, 25–400 Hz</td></tr>
 <tr><td>5. Spike removal</td><td>Remove friction spikes (Schmidt et al. method)</td><td>Optional</td></tr>
-<tr><td>6. Normalize</td><td>Scale amplitude</td><td>Divide by max abs value (peak normalize)</td></tr>
-<tr><td>7. Quality check</td><td>See below</td><td>Reject → <code>accepted: false</code></td></tr>
+<tr><td>6. Quality check</td><td>See below. Runs before normalizing, so level checks see the real signal</td><td>Reject → <code>accepted: false</code></td></tr>
+<tr><td>7. Normalize</td><td>Scale amplitude</td><td>Divide by max abs value (peak normalize)</td></tr>
 <tr><td>8. Segment</td><td>Fixed windows</td><td>5 s windows, 2.5 s hop; drop the last partial window</td></tr>
-<tr><td>9. Features</td><td>Log-mel spectrogram per window</td><td><code>n_fft=256</code>, <code>hop_length=40</code> (20 ms), <code>n_mels=64</code>, <code>fmin=20</code>, <code>fmax=800</code>; then <code>log(1e-6 + S)</code> and per-window standardization</td></tr>
+<tr><td>9. Features</td><td>Log-mel spectrogram per window</td><td><code>n_fft=256</code>, <code>hop_length=40</code> (20 ms), <code>n_mels=64</code>, <code>fmin=20</code>, <code>fmax=400</code> (provisional until the model trial); then <code>log(1e-6 + S)</code> and per-window standardization</td></tr>
 </table></div>
 <h3>Quality check rules (all must pass)</h3>
 <ul>
   <li><b>Duration</b> ≥ 8 s after trim → else <code>too_short</code></li>
-  <li><b>Clipping:</b> share of raw samples with |x| ≥ 0.99 is under 1% → else <code>clipping</code></li>
-  <li><b>Level:</b> RMS of filtered signal above floor (tune on real phone recordings) → else <code>too_quiet</code></li>
-  <li><b>Noise ratio:</b> energy in 25–400 Hz ÷ total energy above threshold → else <code>too_noisy</code></li>
-  <li><b>Heartbeat present:</b> build an envelope (Hilbert or homomorphic), autocorrelate, find peak in the 40–180 bpm lag range. Weak peak → <code>no_heartbeat_detected</code>; rate outside range → <code>heart_rate_out_of_range</code>. This also gives <code>heart_rate_bpm</code>.</li>
-  <li>If the CardioPHON quality head is usable, combine its score into <code>quality.score</code>.</li>
+  <li><b>Clipping:</b> share of decoded samples with |x| ≥ 0.99 is under 1% → else <code>clipping</code></li>
+  <li><b>Level:</b> RMS of filtered signal, before normalizing, above floor (tune on real phone recordings) → else <code>too_quiet</code></li>
+  <li><b>Noise:</b> high energy at S1/S2 compared with between beats, low mains hum at 50/100/150 Hz, and low spectral flatness → else <code>too_noisy</code>. Don't use a 25–400 Hz energy ratio: fan hum and voice sit inside that band.</li>
+  <li><b>Heartbeat present:</b> build an envelope (Hilbert or homomorphic), autocorrelate, find peak over 30–220 bpm. Weak peak → <code>no_heartbeat_detected</code>; rate outside 40–180 bpm → <code>heart_rate_out_of_range</code>. This also gives <code>heart_rate_bpm</code>.</li>
+  <li>CardioPHON's quality model is a separate classical classifier built at 1 kHz. Add it to <code>quality.score</code> only if the model trial shows it's usable.</li>
 </ul>
-<p>Tune thresholds on: dataset recordings marked good, dataset recordings marked unclear, and ~20 team phone recordings (quiet room vs fan on vs talking).</p>
+<p>Audio past 35 s is not decoded, which enforces the 30 s maximum without a new error code.</p>
+<p>Tune thresholds on: dataset recordings marked good, dataset recordings marked unclear, and ~20 consented team phone recordings (quiet room vs fan on vs talking).</p>
 
 <!-- ============================== -->
 <h2 id="ml"><span class="n">11</span>ML model and training</h2>
@@ -449,7 +451,7 @@ gs://&lt;bucket&gt;/models/{model_version}/model.pt</code></pre>
 
 <h3>Labels</h3>
 <ul>
-  <li>Binary target <code>abnormal</code>: PhysioNet 2016 abnormal = 1, normal = 0. CirCor murmur Present = 1, Absent = 0.</li>
+  <li>Binary target <code>abnormal</code>: PhysioNet 2016 abnormal = 1, normal = 0. CirCor murmur Present = 1, Absent = 0. CirCor's label is per patient, so label recordings per site using the <code>Murmur locations</code> field.</li>
   <li>CirCor <code>Unknown</code>: exclude from classifier training; use as negative examples for the quality check.</li>
 </ul>
 
@@ -462,25 +464,25 @@ gs://&lt;bucket&gt;/models/{model_version}/model.pt</code></pre>
 <h3>Model plan</h3>
 <ol>
   <li><b>Baseline first</b> (day 1): small CNN on log-mel windows. Proves the pipeline end to end.</li>
-  <li><b>Main model:</b> fine-tune pretrained <a href="https://arxiv.org/abs/2511.04533">CardioPHON</a> (self-supervised on 6 heart sound datasets, includes quality assessment). If weights or code are hard to use in time, fine-tune a general pretrained audio CNN instead.</li>
+  <li><b>Main model:</b> fine-tune pretrained <a href="https://arxiv.org/abs/2511.04533">CardioPHON</a> (self-supervised on 6 heart sound datasets, includes quality assessment). Run a one-day trial first to confirm its weights, licence, sample rate and input shape. If weights or code are hard to use in time, fine-tune a general pretrained audio CNN instead.</li>
   <li><b>Window → recording:</b> mean of window probabilities.</li>
   <li><b>Recording → screening:</b> max over locations (favours sensitivity: one bad spot flags the screening).</li>
-  <li><b>Metadata fusion (late fusion):</b> logistic regression or small MLP on <code>[audio_probability, age_years, sex, height_cm, weight_kg, bmi, missing flags]</code>. Map CirCor age groups to midpoint years. Fill missing values with training medians + a missing flag. Report results with and without metadata.</li>
+  <li><b>Metadata fusion (late fusion):</b> off for the MVP, so <code>used_patient_data</code> is false. CirCor covers ages 0–21, so adult inputs are extrapolation, and missing flags can act as a dataset identifier. Add it only if it beats audio-only on held-out data with missing flags removed. If used: logistic regression or small MLP on <code>[audio_probability, age_years, sex, height_cm, weight_kg, bmi]</code>. Map CirCor age groups to midpoint years and fill missing values with training medians. Report results with and without metadata.</li>
 </ol>
 
 <h3>Training details</h3>
 <ul>
   <li>Imbalance: class-weighted loss (or focal loss) + oversampling of abnormal windows.</li>
-  <li>Augmentation: random time shift, gain ±6 dB, added background noise at 10–30 dB SNR, small time-stretch (±5%).</li>
+  <li>Augmentation: random time shift, gain ±6 dB, added background noise at 10–30 dB SNR, small time-stretch (±5%), and a phone channel (high-pass, AAC round trip).</li>
   <li>Early stopping on validation AUC.</li>
-  <li>Export: TorchScript (<code>model.pt</code>) for CPU inference. Version string like <code>cardiophon-ft-0.1</code>.</li>
-  <li>Explainability (stretch): Grad-CAM on last conv layer, overlay on spectrogram, save PNG.</li>
+  <li>Export: ONNX (<code>model.onnx</code>) for CPU inference with ONNX Runtime, plus <code>model_meta.json</code> holding the version, threshold and preprocessing. Version string like <code>cardiophon-ft-0.1</code>.</li>
+  <li>Explainability (stretch): Grad-CAM on last conv layer, overlay on spectrogram, save PNG. This needs torch, which is not in the runtime image, so precompute for demo samples or drop it.</li>
 </ul>
 
 <h3>Metrics to report (on test split)</h3>
 <ul>
   <li>Sensitivity, specificity, AUC, F1, confusion matrix, per dataset and combined.</li>
-  <li>Choose decision threshold on validation for <b>sensitivity ≥ 0.85</b>. Missing a sick heart is worse than a false alarm.</li>
+  <li>Choose decision threshold on validation for <b>sensitivity ≥ 0.85</b>, on the final screening-level score using MV + AV only, and check the 1-recording case. Missing a sick heart is worse than a false alarm.</li>
   <li>Log every run in <code>ml/results.md</code>: date, data, params, metrics.</li>
 </ul>
 
@@ -495,7 +497,8 @@ gs://&lt;bucket&gt;/models/{model_version}/model.pt</code></pre>
 <h2 id="gemini"><span class="n">12</span>Gemini usage</h2>
 <ul>
   <li><b>Two jobs only:</b> (1) explain the model result in plain Hindi and English, (2) summarize uploaded reports (multimodal input: image/PDF).</li>
-  <li>Model: a current Gemini Flash-class model. Pin the exact ID in <code>GEMINI_MODEL</code>.</li>
+  <li>Access: through Vertex AI in <code>asia-south1</code> with the service account, no API key.</li>
+  <li>Model: a current Gemini Flash-class model. Pin the exact ID in <code>GEMINI_MODEL</code> (<code>gemini-3.5-flash</code>).</li>
   <li>Temperature 0.2. Request JSON output. Timeout 15 s.</li>
   <li><b>Fallback:</b> if Gemini fails or times out, use fixed template text per label. The result must never depend on Gemini.</li>
   <li>Do not send names or any identifiers to Gemini. Only age, sex, label, probabilities, bpm, locations, report summary.</li>
@@ -572,23 +575,25 @@ If the image is not a medical report, return report_type "other" and say so.</co
 <tr><th>Where</th><th>Variable</th><th>Example</th></tr>
 <tr><td>Backend</td><td><code>GCP_PROJECT</code></td><td>heartscreen-abc</td></tr>
 <tr><td>Backend</td><td><code>STORAGE_BUCKET</code></td><td>heartscreen-abc-data</td></tr>
-<tr><td>Backend</td><td><code>GEMINI_API_KEY</code></td><td>secret (Secret Manager)</td></tr>
-<tr><td>Backend</td><td><code>GEMINI_MODEL</code></td><td>pinned model id</td></tr>
-<tr><td>Backend</td><td><code>MODEL_PATH</code></td><td>/models/model.pt or gs:// path</td></tr>
-<tr><td>Backend</td><td><code>MODEL_VERSION</code></td><td>cardiophon-ft-0.1</td></tr>
-<tr><td>Backend</td><td><code>DECISION_THRESHOLD</code></td><td>0.35 (from validation)</td></tr>
+<tr><td>Backend</td><td><code>GOOGLE_GENAI_USE_VERTEXAI</code></td><td>true</td></tr>
+<tr><td>Backend</td><td><code>GOOGLE_CLOUD_PROJECT</code></td><td>heartscreen-abc</td></tr>
+<tr><td>Backend</td><td><code>GOOGLE_CLOUD_LOCATION</code></td><td>asia-south1</td></tr>
+<tr><td>Backend</td><td><code>GEMINI_MODEL</code></td><td>gemini-3.5-flash</td></tr>
+<tr><td>Backend</td><td><code>MODEL_PATH</code></td><td>/srv/models/model.onnx</td></tr>
 <tr><td>Backend</td><td><code>MOCK_INFERENCE</code></td><td>true | false</td></tr>
-<tr><td>Backend</td><td><code>TARGET_SR</code></td><td>2000</td></tr>
 <tr><td>App</td><td><code>EXPO_PUBLIC_API_BASE_URL</code></td><td>https://heartscreen-api-xxxx.a.run.app</td></tr>
 <tr><td>App</td><td><code>EXPO_PUBLIC_FIREBASE_*</code></td><td>Firebase web config values</td></tr>
 </table></div>
+
+<p class="muted">Model version, threshold and sample rate come from <code>model_meta.json</code>, not env vars. Full backend list: <code>backend/docs/SPEC.md</code> section 7.</p>
 
 <h3>Run locally</h3>
 <pre><code># backend
 cd backend
 python -m venv .venv &amp;&amp; source .venv/bin/activate
 pip install -r requirements.txt          # needs ffmpeg installed on the machine
-export MOCK_INFERENCE=true GOOGLE_APPLICATION_CREDENTIALS=./sa.json
+gcloud auth application-default login    # no sa.json key file
+export MOCK_INFERENCE=true
 uvicorn app.main:app --reload --port 8000
 
 # app
@@ -604,9 +609,7 @@ python-multipart
 pydantic-settings
 numpy
 scipy
-librosa
-soundfile
-torch            # CPU wheel in Docker
+onnxruntime      # torch and librosa are for ml/ only
 firebase-admin
 google-cloud-storage
 google-genai</code></pre>
@@ -614,18 +617,14 @@ google-genai</code></pre>
 <!-- ============================== -->
 <h2 id="deploy"><span class="n">15</span>Deployment</h2>
 <ul>
-  <li><b>Cloud Run</b>, region <code>asia-south1</code> (Mumbai). 2 vCPU, 4 GiB RAM, concurrency 4, request timeout 60 s.</li>
+  <li><b>Cloud Run</b>, region <code>asia-south1</code> (Mumbai). 2 vCPU, 4 GiB RAM, concurrency 4, request timeout 60 s, CPU boost, max 3 instances.</li>
   <li><b>Min instances = 1 on demo day</b> to avoid cold starts (model load takes seconds). Set back to 0 after.</li>
-  <li>Docker image: <code>python:3.11-slim</code> + <code>apt-get install ffmpeg</code> + CPU-only torch. Load the model once at startup, not per request.</li>
-  <li>Secrets via Secret Manager (<code>GEMINI_API_KEY</code>). Service account with Firestore + Storage access.</li>
+  <li>Docker image: <code>python:3.11-slim-bookworm</code> + <code>apt-get install ffmpeg</code> + ONNX Runtime. Load the model once at startup, not per request.</li>
+  <li>Dedicated service account with least privilege. No Gemini key, because Vertex AI uses that account.</li>
   <li>Logs: request id, screening id, durations, model version. <b>Never log patient data or audio.</b></li>
-  <li>Vertex AI endpoint is optional. If time is short, keep the model inside the Cloud Run container.</li>
+  <li>The model stays inside the Cloud Run container; no Vertex AI endpoint.</li>
 </ul>
-<pre><code>gcloud run deploy heartscreen-api \
-  --source backend --region asia-south1 \
-  --cpu 2 --memory 4Gi --concurrency 4 --timeout 60 \
-  --set-env-vars MODEL_VERSION=cardiophon-ft-0.1,MOCK_INFERENCE=false \
-  --set-secrets GEMINI_API_KEY=gemini-key:latest</code></pre>
+<p>Full steps and commands: <code>backend/docs/DEPLOY.md</code>. Deploy with that guide only, because it sets the production login and storage settings.</p>
 
 <!-- ============================== -->
 <h2 id="privacy"><span class="n">16</span>Privacy, safety, legal</h2>
@@ -633,6 +632,8 @@ google-genai</code></pre>
   <li><b>Consent screen</b> before any data is collected. Store consent version + timestamp.</li>
   <li>Collect the minimum: no name, phone, address or exact date of birth.</li>
   <li>Users can delete a screening (all audio and reports).</li>
+  <li>Audio is kept for at most 30 days. Rejected recordings keep metadata only.</li>
+  <li>Get legal review before real users, covering minors' consent and Google's Generative AI health restrictions.</li>
   <li>Follow the spirit of India's Digital Personal Data Protection Act, 2023: clear purpose, consent, deletion on request.</li>
   <li>Delete all hackathon data after the event unless the team decides otherwise.</li>
   <li>Team test recordings: only from people who agreed, and never used to claim accuracy.</li>
@@ -659,6 +660,7 @@ google-genai</code></pre>
   <li>GCP project, Firebase project, billing, bucket, Firestore</li>
   <li>Repo with folders from section 14</li>
   <li>Download PhysioNet 2016 + CirCor</li>
+  <li>One-day CardioPHON trial, before audio constants are fixed</li>
   <li>Backend skeleton with <code>/healthz</code> + mock mode deployed to Cloud Run</li>
   <li>Expo app skeleton with navigation + anonymous Firebase auth</li>
 </ul>

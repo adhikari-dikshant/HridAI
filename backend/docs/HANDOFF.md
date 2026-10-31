@@ -1,0 +1,79 @@
+# HANDOFF — HridAI Backend
+
+> **Every AI assistant: read this first, and update it before you stop.**
+> Keep "Current state" and "Next task" accurate; append to the Session log (newest first). Keep it short.
+
+## Current state
+
+- **Phase:** Planning reviewed. No backend code yet. Next phase is **B0 Scaffold** (`PLAN.md` §3).
+- **Review:** `docs/REVIEW.md` lists 38 findings. Non-contract ones are applied to `PLAN.md`, `SPEC.md` and the HTML.
+- **Still open, needs the app developer:** `/health` path (finding 2; DEPLOY.md already expects it), app minimum 10 s (10), confidence rescale (14), keep last accepted recording (33), contract edge cases (34), over-limit status (20, proposed 429), Android `audioSource: 'unprocessed'` (35).
+- **Still open, needs the user:** Google's Generative AI health terms (23); legal review before real users (27).
+- **Deploy:** use `docs/DEPLOY.md`. It has not been run yet.
+- **Repo (`c:\wamp64\www\HridAi`)** contains: `README.md`, `heart-screening-context.html` (canonical cross-team context), `backend/` (this folder: AI entry files + `docs/`, `.env.example`, `.gitignore`, `README.md`).
+- `app/` (React Native, owned by a teammate) and `ml/` are not in this repo yet.
+- Cloud resources (GCP project, Firebase, buckets): **not created yet** (status unknown, ask the user).
+- Model: **not trained yet**. Backend must run in mock mode until it is.
+
+## Next task
+
+**B0 — Scaffold and tooling** (see `PLAN.md` §3 B0 checklist). Then go straight to **B1 — full v1 API in mock mode**, because the mobile developer is blocked on it. In parallel, run the **Model trial** (`PLAN.md` §3) before B4/B5 freeze any audio constants.
+
+## Key decisions so far
+
+| Date | Decision | Why |
+|------|----------|-----|
+| 2026-10-31 | Backend lives in `backend/` at repo root (matches ctx §14 layout) | user request |
+| 2026-10-31 | Adapters behind protocols: `DATA_BACKEND=memory\|firestore`, `AUTH_MODE=dev\|firebase`, `MOCK_INFERENCE`, `MOCK_QUALITY` | run and test with zero credentials; unblock app dev |
+| 2026-10-31 | Phase order: scaffold → mock API → deploy mock → auth/persistence → audio/quality → inference → Gemini → harden → stretch | app team unblocked first, mocks replaced one by one |
+| 2026-10-31 | Validation errors return **400** `invalid_request` in the SPEC envelope (override FastAPI's 422) | contract says 400 for bad input |
+| 2026-10-31 | Other users' screenings return **404** (not 403) | contract; don't leak existence |
+| 2026-10-31 | Model artifact contract proposed in `SPEC.md` §4.4 (`[N,1,64,T]` + `model_meta.json` + optional `fusion.json`; format superseded below) | needs confirmation by the Model trial (also Pranav) |
+| 2026-10-31 | ONNX Runtime instead of TorchScript; model baked into the image; version and threshold in `model_meta.json` | TorchScript is deprecated; smaller image; can't disagree with the model. Grad-CAM (B9) now needs a separate plan |
+| 2026-10-31 | Gemini through Vertex AI with `gemini-3.5-flash`, no API key | data handling; no secret to manage |
+| 2026-10-31 | Metadata fusion off for MVP; rejected audio not kept; 30-day audio retention; `ENV=staging` added | `REVIEW.md` findings 15, 25, 26, 3 |
+| 2026-10-31 | Cross-assistant context: `AGENTS.md` (canonical) + `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/backend.mdc` pointing to it | user wants to resume in multiple AI assistants |
+
+Open backend defaults are listed in `PLAN.md` §6; ctx-level open decisions (app name, track, members 3–4, 2 vs 4 locations, CardioPHON vs CNN) are in the HTML §19.
+
+## Gotchas / things to remember
+
+- The user is on **Windows + PowerShell**; give PowerShell commands (`.venv\Scripts\Activate.ps1`, `$env:VAR="x"`).
+- Android can't record WAV → uploads are **m4a/AAC 44.1 kHz mono**; ffmpeg is mandatory (local + Docker).
+- Hindi messages for most quality issue codes are not in the context doc yet — draft them, flag for native-speaker review.
+- `message_en`/`message_hi` must be omitted on accepted recordings (not `null`).
+- Never use the word "diagnosis" except in the disclaimer's negation ("not a medical diagnosis").
+- CirCor data is pediatric and stethoscope-recorded: performance on adult phone audio is unproven — state as limitation, don't claim accuracy from team recordings.
+
+## Original conversation context (session 1)
+
+The user (Pranav Soni, backend/ML owner) asked, in an Antigravity session:
+
+> "create a new backend dir and then draft a complete plan to create the backend of this project and make sure to include this chat's context in the backend dir so i can resume the development in multiple ai coding assistants."
+
+What the assistant did: read `heart-screening-context.html` in full (project spec: overview, team, scope, architecture, stack, user flow, recording spec, API contract, data model, audio pipeline, ML, Gemini, result logic, repo layout, deployment, privacy, demo, build plan, open decisions), then created this `backend/` folder with:
+
+- `AGENTS.md` — canonical instructions for all AI assistants (rules, read order, session protocol)
+- `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/backend.mdc` — thin pointers to `AGENTS.md` for Claude Code, Gemini CLI/Antigravity, Cursor
+- `docs/PLAN.md` — goals, architecture, target layout, phased checklist B0–B9, testing, risks, open defaults
+- `docs/SPEC.md` — backend extract of the context doc (API contract, data model, pipeline, Gemini, result logic, config, deploy, privacy)
+- `docs/HANDOFF.md` — this file
+- `README.md`, `.env.example`, `.gitignore`
+
+No application code was written; the user asked for a plan only.
+
+## Session log (newest first)
+
+### 2026-10-31 — Session 2 — plan review + deploy guide
+- Reviewed all plans against current Google docs and numeric tests of SPEC's constants. Wrote `docs/REVIEW.md`.
+- Wrote `docs/DEPLOY.md` (PowerShell, Vertex AI for Gemini, dedicated service account, image-based deploys). Not run: no code yet, `gcloud` not installed, Docker daemon was off.
+- README deploy section now points to `DEPLOY.md`. No code, no cloud resources touched. Nothing committed.
+- Applied the non-contract findings to `PLAN.md` and `SPEC.md`; aligned `.env.example` and the `AGENTS.md` stack line. Contract findings left for the app developer.
+- Updated the HTML to match, leaving its API contract sections unchanged, so `SPEC.md` no longer needs a differences section.
+- Next: agree the open contract items, then B0 + Model trial.
+
+### 2026-10-31 — Session 1 (Antigravity) — planning
+- Created `backend/` with plan, spec, handoff and multi-assistant entry files.
+- No code, no cloud resources touched.
+- Next: B0 scaffold.
+

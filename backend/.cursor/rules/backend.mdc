@@ -1,0 +1,9 @@
+---
+description: HridAI backend context and rules
+alwaysApply: true
+---
+
+Before doing anything in this backend, read `AGENTS.md` (in the backend root) and follow its "Read order":
+`docs/HANDOFF.md` → `docs/PLAN.md` → `docs/SPEC.md`.
+At the end of each session, update `docs/HANDOFF.md` as described in AGENTS.md.
+

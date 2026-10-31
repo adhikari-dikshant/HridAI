@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.env
+sa.json
+*.json.key
+models/
+local_data/
+*.egg-info/
+
