@@ -1,8 +1,8 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, PlainSerializer
+from pydantic import BaseModel, Field, PlainSerializer, StringConstraints
 
 
 class Lang(StrEnum):
@@ -15,6 +15,10 @@ class Location(StrEnum):
     AV = "AV"
     PV = "PV"
     TV = "TV"
+    NK = "NK"
+
+
+ChestLocation = Literal[Location.MV, Location.AV, Location.PV, Location.TV]
 
 
 class Sex(StrEnum):
@@ -93,23 +97,67 @@ class Consent(BaseModel):
     version: str = Field(min_length=1, max_length=20)
 
 
-class Patient(BaseModel):
-    age_years: int = Field(ge=0, le=110)
+PatientLabel = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+AgeYears = Annotated[int, Field(ge=0, le=110)]
+HeightCm = Annotated[float, Field(gt=0, le=250)]
+WeightKg = Annotated[float, Field(gt=0, le=300)]
+
+
+class PatientDetails(BaseModel):
+    label: PatientLabel
+    age_years: AgeYears
     sex: Sex
-    height_cm: float | None = Field(default=None, gt=0, le=250)
-    weight_kg: float | None = Field(default=None, gt=0, le=300)
-    symptoms: list[Symptom] = []
+    height_cm: HeightCm | None = None
+    weight_kg: WeightKg | None = None
     known_conditions: list[KnownCondition] = []
+
+
+class PatientCreate(PatientDetails):
+    consent: Consent
+
+
+class PatientUpdate(BaseModel):
+    # A field left out stays as it is. Only height and weight can be cleared with null.
+    label: PatientLabel = None
+    age_years: AgeYears = None
+    sex: Sex = None
+    height_cm: HeightCm | None = None
+    weight_kg: WeightKg | None = None
+    known_conditions: list[KnownCondition] = None
+
+
+class Patient(PatientDetails):
+    patient_id: str
+    last_screening_at: UtcTimestamp | None
+    created_at: UtcTimestamp
+    updated_at: UtcTimestamp
+
+
+class PatientList(BaseModel):
+    items: list[Patient]
+
+
+class PatientSnapshot(BaseModel):
+    """The patient's details when a screening was made. Never holds the label."""
+
+    age_years: int
+    sex: Sex
+    height_cm: float | None
+    weight_kg: float | None
+    symptoms: list[Symptom]
+    known_conditions: list[KnownCondition]
 
 
 class ScreeningCreate(BaseModel):
     language: Lang
     consent: Consent
-    patient: Patient
+    patient_id: str
+    symptoms: list[Symptom] = []
 
 
 class ScreeningCreated(BaseModel):
     screening_id: str
+    patient_id: str
     status: ScreeningStatus
     required_locations: list[Location]
     optional_locations: list[Location]
@@ -137,7 +185,7 @@ class RejectedRecording(AcceptedRecording):
 
 
 class LocationResult(BaseModel):
-    location: Location
+    location: ChestLocation
     abnormal_probability: float
     quality_score: float
     heatmap_url: str | None
@@ -181,16 +229,18 @@ class RecordingSummary(BaseModel):
 
 class ScreeningDetail(BaseModel):
     screening_id: str
+    patient_id: str
     status: ScreeningStatus
     language: Lang
     created_at: UtcTimestamp
-    patient: Patient
+    patient: PatientSnapshot
     recordings: list[RecordingSummary]
     analysis: AnalyzeResponse | None
 
 
 class ScreeningListItem(BaseModel):
     screening_id: str
+    patient_id: str
     created_at: UtcTimestamp
     status: ScreeningStatus
     label: Label | None

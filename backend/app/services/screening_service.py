@@ -3,11 +3,12 @@ from datetime import UTC, datetime
 
 from app.core.errors import ApiError
 from app.core.ids import new_id
-from app.core.messages import DISCLAIMER, ISSUE_MESSAGES
+from app.core.messages import DISCLAIMER, issue_message
 from app.schemas import (
     AcceptedRecording,
     AnalyzeResponse,
     Location,
+    PatientSnapshot,
     Platform,
     RecordingSummary,
     RejectedRecording,
@@ -26,8 +27,20 @@ from app.services.result import build_result
 from app.services.storage import BlobStore
 from app.services.templates import Explainer
 
-REQUIRED_LOCATIONS = [Location.MV, Location.AV]
+REQUIRED_LOCATIONS = [Location.MV, Location.AV, Location.NK]
 OPTIONAL_LOCATIONS = [Location.PV, Location.TV]
+
+
+def owned_patient(repository: Repository, owner_uid: str, patient_id: str) -> dict:
+    patient = repository.get_patient(patient_id)
+    if patient is None or patient["owner_uid"] != owner_uid:
+        raise ApiError("patient_not_found")
+    return patient
+
+
+def accepted_chest_recordings(recordings: list[dict]) -> list[dict]:
+    # The model has no labelled neck data, so neck audio never reaches the result.
+    return [r for r in recordings if r["accepted"] and r["location"] != Location.NK]
 
 
 @dataclass(frozen=True)
@@ -58,11 +71,14 @@ class ScreeningService:
     def create(self, owner_uid: str, request: ScreeningCreate) -> ScreeningCreated:
         if not request.consent.accepted:
             raise ApiError("consent_required")
+        patient = owned_patient(self.repository, owner_uid, request.patient_id)
 
         now = datetime.now(UTC)
+        snapshot = PatientSnapshot.model_validate(patient | {"symptoms": request.symptoms})
         screening = {
             "screening_id": new_id("scr"),
             "owner_uid": owner_uid,
+            "patient_id": request.patient_id,
             "created_at": now,
             "updated_at": now,
             "status": ScreeningStatus.awaiting_recordings,
@@ -72,15 +88,17 @@ class ScreeningService:
                 "version": request.consent.version,
                 "accepted_at": now,
             },
-            "patient": request.patient.model_dump(mode="json"),
+            "patient": snapshot.model_dump(mode="json"),
             "result": None,
             "explanation": None,
             "completed_at": None,
             "analysis_started_at": None,
         }
         self.repository.create_screening(screening)
+        self.repository.update_patient(request.patient_id, {"last_activity_at": now})
         return ScreeningCreated(
             screening_id=screening["screening_id"],
+            patient_id=request.patient_id,
             status=screening["status"],
             required_locations=REQUIRED_LOCATIONS,
             optional_locations=OPTIONAL_LOCATIONS,
@@ -90,7 +108,7 @@ class ScreeningService:
     def add_recording(
         self, owner_uid: str, screening_id: str, upload: NewRecording
     ) -> AcceptedRecording | RejectedRecording:
-        self._owned(owner_uid, screening_id, refuse_while_analyzing=True)
+        screening = self._owned(owner_uid, screening_id, refuse_while_analyzing=True)
 
         quality = self.quality.check(upload.data, upload.location, upload.duration_ms)
         accepted = not quality.issues
@@ -117,17 +135,19 @@ class ScreeningService:
             },
         )
 
-        status = self._status_after_upload(screening_id)
-        self.repository.update_screening(
-            screening_id,
-            {
+        status = screening["status"]
+        changes = {"updated_at": datetime.now(UTC)}
+        if upload.location != Location.NK:
+            status = self._status_after_upload(screening_id)
+            changes |= {
                 "status": status,
-                "updated_at": datetime.now(UTC),
                 "result": None,
                 "explanation": None,
                 "completed_at": None,
-            },
-        )
+            }
+        self.repository.update_screening(screening_id, changes)
+        if screening["completed_at"] and "completed_at" in changes:
+            self._refresh_last_screening(owner_uid, screening["patient_id"])
 
         fields = {
             "recording_id": recording_id,
@@ -138,7 +158,7 @@ class ScreeningService:
         }
         if accepted:
             return AcceptedRecording(**fields)
-        message_en, message_hi = ISSUE_MESSAGES[quality.issues[0]]
+        message_en, message_hi = issue_message(quality.issues[0], upload.location)
         return RejectedRecording(**fields, message_en=message_en, message_hi=message_hi)
 
     def analyze(self, owner_uid: str, screening_id: str) -> AnalyzeResponse:
@@ -146,7 +166,7 @@ class ScreeningService:
         if screening["status"] == ScreeningStatus.completed:
             return self._analysis(screening)
 
-        recordings = [r for r in self.repository.list_recordings(screening_id) if r["accepted"]]
+        recordings = accepted_chest_recordings(self.repository.list_recordings(screening_id))
         if not recordings:
             raise ApiError("no_accepted_recordings")
         if not self.repository.try_start_analysis(screening_id):
@@ -185,6 +205,7 @@ class ScreeningService:
                 "updated_at": now,
             },
         )
+        self._refresh_last_screening(owner_uid, screening["patient_id"])
         return self._analysis(self.repository.get_screening(screening_id))
 
     def get(self, owner_uid: str, screening_id: str) -> ScreeningDetail:
@@ -192,6 +213,7 @@ class ScreeningService:
         completed = screening["status"] == ScreeningStatus.completed
         return ScreeningDetail(
             screening_id=screening_id,
+            patient_id=screening["patient_id"],
             status=screening["status"],
             language=screening["language"],
             created_at=screening["created_at"],
@@ -203,23 +225,27 @@ class ScreeningService:
             analysis=self._analysis(screening) if completed else None,
         )
 
-    def list(self, owner_uid: str, limit: int) -> ScreeningList:
+    def list(self, owner_uid: str, limit: int, patient_id: str | None = None) -> ScreeningList:
+        if patient_id is not None:
+            owned_patient(self.repository, owner_uid, patient_id)
         return ScreeningList(
             items=[
                 ScreeningListItem(
                     screening_id=screening["screening_id"],
+                    patient_id=screening["patient_id"],
                     created_at=screening["created_at"],
                     status=screening["status"],
                     label=screening["result"]["label"] if screening["result"] else None,
                 )
-                for screening in self.repository.list_screenings(owner_uid, limit)
+                for screening in self.repository.list_screenings(owner_uid, limit, patient_id)
             ]
         )
 
     def delete(self, owner_uid: str, screening_id: str) -> None:
-        self._owned(owner_uid, screening_id)
+        screening = self._owned(owner_uid, screening_id)
         self.blobs.delete_prefix(f"screenings/{screening_id}")
         self.repository.delete_screening(screening_id)
+        self._refresh_last_screening(owner_uid, screening["patient_id"])
 
     def _owned(
         self, owner_uid: str, screening_id: str, refuse_while_analyzing: bool = False
@@ -240,9 +266,16 @@ class ScreeningService:
 
     def _status_after_upload(self, screening_id: str) -> ScreeningStatus:
         recordings = self.repository.list_recordings(screening_id)
-        if any(recording["accepted"] for recording in recordings):
+        if accepted_chest_recordings(recordings):
             return ScreeningStatus.ready
         return ScreeningStatus.awaiting_recordings
+
+    def _refresh_last_screening(self, owner_uid: str, patient_id: str) -> None:
+        screenings = self.repository.list_screenings(owner_uid, None, patient_id)
+        completed = [s["completed_at"] for s in screenings if s["completed_at"]]
+        self.repository.update_patient(
+            patient_id, {"last_screening_at": max(completed, default=None)}
+        )
 
     def _analysis(self, screening: dict) -> AnalyzeResponse:
         return AnalyzeResponse(

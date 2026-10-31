@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from conftest import make_settings
 from fastapi.testclient import TestClient
-from helpers import create_screening, ready_screening, screening_body, upload
+from helpers import create_patient, create_screening, ready_screening, screening_body, upload
 
 from app.main import create_app
 
@@ -25,26 +25,31 @@ def stored_files(settings) -> list[Path]:
 
 
 def test_create_returns_contract_shape(client, auth):
-    response = client.post("/v1/screenings", json=screening_body(), headers=auth)
+    patient_id = create_patient(client, auth)
+
+    response = client.post("/v1/screenings", json=screening_body(patient_id), headers=auth)
 
     body = response.json()
     assert response.status_code == 201
     assert set(body) == {
         "screening_id",
+        "patient_id",
         "status",
         "required_locations",
         "optional_locations",
         "created_at",
     }
     assert re.fullmatch(r"scr_[a-z2-7]{10}", body["screening_id"])
+    assert body["patient_id"] == patient_id
     assert body["status"] == "awaiting_recordings"
-    assert body["required_locations"] == ["MV", "AV"]
+    assert body["required_locations"] == ["MV", "AV", "NK"]
     assert body["optional_locations"] == ["PV", "TV"]
     assert TIMESTAMP.match(body["created_at"])
 
 
 def test_create_refuses_declined_consent(client, auth):
-    body = screening_body(consent={"accepted": False, "version": "v1"})
+    patient_id = create_patient(client, auth)
+    body = screening_body(patient_id, consent={"accepted": False, "version": "v1"})
 
     response = client.post("/v1/screenings", json=body, headers=auth)
 
@@ -57,21 +62,22 @@ def test_create_refuses_declined_consent(client, auth):
     [
         {"consent": None},
         {"language": "fr"},
-        {"patient": {"age_years": 111, "sex": "male"}},
-        {"patient": {"age_years": -1, "sex": "male"}},
-        {"patient": {"age_years": 30}},
-        {"patient": {"age_years": 30, "sex": "male", "symptoms": ["headache"]}},
+        {"patient_id": None},
+        {"symptoms": ["headache"]},
     ],
 )
 def test_create_rejects_bad_input_with_400(client, auth, patch):
-    response = client.post("/v1/screenings", json=screening_body(**patch), headers=auth)
+    body = screening_body(create_patient(client, auth)) | patch
+
+    response = client.post("/v1/screenings", json=body, headers=auth)
 
     assert response.status_code == 400
     assert error_code(response) == "invalid_request"
 
 
 def test_create_accepts_required_fields_only(client, auth):
-    body = screening_body(patient={"age_years": 0, "sex": "other"})
+    body = screening_body(create_patient(client, auth))
+    del body["symptoms"]
 
     assert client.post("/v1/screenings", json=body, headers=auth).status_code == 201
 
@@ -398,15 +404,79 @@ def test_cycle_scenario_walks_every_result(tmp_path, auth):
 
 
 def test_chest_pain_always_advises_a_doctor(tmp_path, auth):
-    patient = {"age_years": 40, "sex": "female", "symptoms": ["chest_pain"]}
     settings = make_settings(tmp_path, mock_scenario="normal")
     with TestClient(create_app(settings)) as client:
-        screening_id = ready_screening(client, auth, patient=patient)
+        screening_id = ready_screening(client, auth, symptoms=["chest_pain"])
         path = f"/v1/screenings/{screening_id}/analyze"
         explanation = client.post(path, headers=auth).json()["explanation"]
 
     assert "promptly" in explanation["en"]
     assert "जल्द से जल्द" in explanation["hi"]
+
+
+# Neck recordings
+
+
+def test_neck_recording_is_stored_and_listed(client, auth, settings):
+    screening_id = create_screening(client, auth)
+
+    response = upload(client, auth, screening_id, "NK")
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["location"] == "NK"
+    assert body["accepted"] is True
+    assert len(stored_files(settings)) == 1
+    recordings = client.get(f"/v1/screenings/{screening_id}", headers=auth).json()["recordings"]
+    assert [item["location"] for item in recordings] == ["NK"]
+
+
+def test_neck_recording_alone_does_not_make_screening_ready(client, auth):
+    screening_id = create_screening(client, auth)
+
+    body = upload(client, auth, screening_id, "NK").json()
+
+    assert body["screening_status"] == "awaiting_recordings"
+
+
+def test_analyze_with_only_neck_recording_is_409(client, auth):
+    screening_id = create_screening(client, auth)
+    upload(client, auth, screening_id, "NK")
+
+    response = client.post(f"/v1/screenings/{screening_id}/analyze", headers=auth)
+
+    assert response.status_code == 409
+    assert error_code(response) == "no_accepted_recordings"
+
+
+def test_neck_recording_is_left_out_of_the_result(client, auth):
+    screening_id = ready_screening(client, auth)
+    upload(client, auth, screening_id, "NK")
+
+    result = client.post(f"/v1/screenings/{screening_id}/analyze", headers=auth).json()["result"]
+
+    assert [item["location"] for item in result["per_location"]] == ["MV", "AV"]
+    assert result["heart_rate_bpm"] == 76
+
+
+def test_neck_retake_keeps_completed_result(client, auth):
+    screening_id = ready_screening(client, auth)
+    analysis = client.post(f"/v1/screenings/{screening_id}/analyze", headers=auth).json()
+
+    body = upload(client, auth, screening_id, "NK").json()
+
+    detail = client.get(f"/v1/screenings/{screening_id}", headers=auth).json()
+    assert body["screening_status"] == "completed"
+    assert detail["analysis"] == analysis
+
+
+def test_rejected_neck_recording_keeps_chest_status(client, auth):
+    screening_id = ready_screening(client, auth)
+
+    body = upload(client, auth, screening_id, "NK", duration_ms=5000).json()
+
+    assert body["accepted"] is False
+    assert body["screening_status"] == "ready"
 
 
 # GET and DELETE
@@ -440,7 +510,7 @@ def test_list_is_newest_first_and_owner_only(client, auth):
     items = client.get("/v1/screenings", headers=auth).json()["items"]
 
     assert [item["screening_id"] for item in items] == [second, first]
-    assert set(items[0]) == {"screening_id", "created_at", "status", "label"}
+    assert set(items[0]) == {"screening_id", "patient_id", "created_at", "status", "label"}
     assert items[0]["label"] is None
 
 

@@ -6,6 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.auth import verify_token
 from app.core.config import Settings
 from app.services.model import MockClassifier
+from app.services.patient_service import PatientService
 from app.services.quality import MockQuality
 from app.services.repository import InMemoryRepository
 from app.services.screening_service import ScreeningService
@@ -47,5 +48,10 @@ def get_service(request: Request) -> ScreeningService:
     return request.app.state.service
 
 
+def get_patient_service(request: Request) -> PatientService:
+    return request.app.state.patients
+
+
 CurrentUid = Annotated[str, Depends(get_current_uid)]
 Service = Annotated[ScreeningService, Depends(get_service)]
+Patients = Annotated[PatientService, Depends(get_patient_service)]

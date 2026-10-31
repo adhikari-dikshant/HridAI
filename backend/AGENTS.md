@@ -27,7 +27,7 @@ Backend owner: **Pranav Soni** (backend, audio pipeline, ML, deployment).
 6. **Never log patient data or audio.** Log request id, screening id, durations, model version only. Never send identifiers to Gemini.
 7. **Backend owns all writes** to Firestore/Storage. Client security rules deny everything.
 8. **Mock mode must always work**: `MOCK_INFERENCE=true` + in-memory/local adapters run with zero cloud credentials. The app team depends on it.
-9. JSON keys `snake_case`, timestamps ISO 8601 UTC, IDs are prefixed strings (`scr_`, `rec_`, `rep_`).
+9. JSON keys `snake_case`, timestamps ISO 8601 UTC, IDs are prefixed strings (`pat_`, `scr_`, `rec_`, `rep_`).
 
 ## Tech stack
 

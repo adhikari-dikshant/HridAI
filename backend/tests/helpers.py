@@ -1,23 +1,38 @@
+VALID_PATIENT = {
+    "consent": {"accepted": True, "version": "v1"},
+    "label": "Papa",
+    "age_years": 34,
+    "sex": "male",
+    "height_cm": 172,
+    "weight_kg": 70,
+    "known_conditions": [],
+}
+
 VALID_SCREENING = {
     "language": "hi",
     "consent": {"accepted": True, "version": "v1"},
-    "patient": {
-        "age_years": 34,
-        "sex": "male",
-        "height_cm": 172,
-        "weight_kg": 70,
-        "symptoms": ["breathlessness"],
-        "known_conditions": [],
-    },
+    "symptoms": ["breathlessness"],
 }
 
 
-def screening_body(**overrides) -> dict:
-    return VALID_SCREENING | overrides
+def patient_body(**overrides) -> dict:
+    return VALID_PATIENT | overrides
 
 
-def create_screening(client, headers, **overrides) -> str:
-    response = client.post("/v1/screenings", json=screening_body(**overrides), headers=headers)
+def create_patient(client, headers, **overrides) -> str:
+    response = client.post("/v1/patients", json=patient_body(**overrides), headers=headers)
+    assert response.status_code == 201
+    return response.json()["patient_id"]
+
+
+def screening_body(patient_id, **overrides) -> dict:
+    return VALID_SCREENING | {"patient_id": patient_id} | overrides
+
+
+def create_screening(client, headers, patient_id=None, **overrides) -> str:
+    patient_id = patient_id or create_patient(client, headers)
+    body = screening_body(patient_id, **overrides)
+    response = client.post("/v1/screenings", json=body, headers=headers)
     assert response.status_code == 201
     return response.json()["screening_id"]
 
@@ -45,8 +60,8 @@ def upload(
     )
 
 
-def ready_screening(client, headers, **overrides) -> str:
-    screening_id = create_screening(client, headers, **overrides)
+def ready_screening(client, headers, patient_id=None, **overrides) -> str:
+    screening_id = create_screening(client, headers, patient_id, **overrides)
     assert upload(client, headers, screening_id, "MV").json()["accepted"] is True
     assert upload(client, headers, screening_id, "AV").json()["accepted"] is True
     return screening_id

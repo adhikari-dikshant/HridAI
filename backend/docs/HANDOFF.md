@@ -5,7 +5,7 @@
 
 ## Current state
 
-- **Phase:** **B0 and B1 done.** The full v1 API runs in mock mode locally: 98 tests pass, ruff is clean, and `scripts/smoke_test.ps1` passed against a live server. Next phase is **B2** (`PLAN.md` §3).
+- **Phase:** **B0 and B1 done.** The full v1 API, including patient profiles and neck recordings, runs in mock mode locally: 164 tests pass, ruff is clean, and `scripts/smoke_test.ps1` passed against a live server. Next phase is **B2** (`PLAN.md` §3).
 - **Not built yet:** `AUTH_MODE=firebase`, `DATA_BACKEND=firestore` and `MOCK_INFERENCE`/`MOCK_QUALITY=false` stop startup with `NotImplementedError` until B3–B5, and `ENV=prod` refuses the mock settings, so only `local` and `staging` can run today.
 - **Dockerfile:** not written yet (B2), so the container has never been built.
 - **Review:** `docs/REVIEW.md` lists 38 findings. Non-contract ones are applied to `PLAN.md`, `SPEC.md` and the HTML.
@@ -19,9 +19,10 @@
 
 ## Next task
 
-1. Send `docs/openapi.json` to the app developer and confirm field names against SPEC §2 (last B1 item).
+1. Send `docs/openapi.json` to the app developer and confirm field names against SPEC §2 (last B1 item). Tell them `POST /v1/screenings` now takes `patient_id` + `symptoms` instead of `patient`: this breaks any client written against the old file.
 2. **B2 — deploy the mock**: needs the user to install `gcloud`, create the Google Cloud project and enable billing (`DEPLOY.md` steps 1–6). Write the Dockerfile from `DEPLOY.md` step 6 and build it with Docker running.
-3. Continue the **Model trial** (`PLAN.md` §3): the repo README links `heart_sound_classification/checkpoints/pretrained_physionet_2022_4kHz.pth`, which suggests 4 kHz rather than our 2 kHz, but input shape is unconfirmed, and **no licence file was found** at the repo top level or in the README. Ask the authors before building on the weights. Decide before B4/B5 freeze audio constants.
+3. **Run `ml/notebooks/train_cardiophon_head.ipynb` on Colab** on all patients, then put the zip's files in `backend/models/`. After changing `audio_config.py`, `audio.py` or `features.py`, run `python ml/build_notebook.py`; a test fails otherwise.
+4. CardioPHON licence: the user chose to use it for a 2-day private demo and email the authors later. No licence was found, and BYOL-A's licence is evaluation-only, so ask before any wider use.
 
 ## Key decisions so far
 
@@ -36,6 +37,10 @@
 | 2026-10-31 | ONNX Runtime instead of TorchScript; model baked into the image; version and threshold in `model_meta.json` | TorchScript is deprecated; smaller image; can't disagree with the model. Grad-CAM (B9) now needs a separate plan |
 | 2026-10-31 | Gemini through Vertex AI with `gemini-3.5-flash`, no API key | data handling; no secret to manage |
 | 2026-10-31 | Metadata fusion off for MVP; rejected audio not kept; 30-day audio retention; `ENV=staging` added | `REVIEW.md` findings 15, 25, 26, 3 |
+| 2026-10-31 | Multiple patient profiles: `/v1/patients` CRUD, screenings take `patient_id`, and each screening keeps a snapshot without the label. Breaking contract change, approved by the user | One account (ASHA worker, family) screens many people |
+| 2026-10-31 | New location `NK` (neck beside the larynx): stored and quality-checked, never classified. An `NK` upload never changes the screening status or clears a result | No labelled neck data exists for the model; neck messages never say to press harder because of carotid pressure risk |
+| 2026-10-31 | Patient list sorts on an internal `last_activity_at`, set on create and on new screening | `last_screening_at` is null for new patients, which would sort them last and let `limit` cut them off |
+| 2026-10-31 | `GET /v1/screenings?patient_id=` returns 404 `patient_not_found` for a patient that isn't yours, not an empty list | Same rule as other ownership checks |
 | 2026-10-31 | Cross-assistant context: `AGENTS.md` (canonical) + `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/backend.mdc` pointing to it | user wants to resume in multiple AI assistants |
 
 ### B0/B1 decisions to confirm
@@ -83,6 +88,17 @@ What the assistant did: read `heart-screening-context.html` in full (project spe
 No application code was written; the user asked for a plan only.
 
 ## Session log (newest first)
+
+### 2026-10-31 — Session 5 — patient profiles + neck recording
+- Added `/v1/patients`, `patient_id` on screenings, and the `NK` location, matching the updated HTML. SPEC, `openapi.json` and the smoke test match. Not committed.
+- New in the code: `app/api/patients.py`, `app/services/patient_service.py`, `tests/test_patients.py`. `InMemoryRepository` holds patients, so B3 must add them to the Firestore repository, including the two composite indexes in SPEC §3.
+- B4 must add separate neck quality thresholds. `MockQuality` treats `NK` like any chest spot.
+- Neck Hindi text in `messages.py` is drafted and needs native-speaker review. The neck placement instruction needs a doctor's review before real users.
+
+### 2026-10-31 — Session 4 — training notebook
+- Confirmed the checkpoint is encoder-only, so a classifier must be trained. ONNX export works on the real encoder at any length.
+- Audio plan moved to CardioPHON's settings (4 kHz, whole recording, 60–2,000 Hz). SPEC, PLAN and the HTML are updated. `audio_config.py`, `audio.py` and `features.py` added; `features.py` matches nnAudio.
+- Notebook tested end to end on 120 patients with real data. Those numbers are too small to quote.
 
 ### 2026-10-31 — Session 3 — B0 + B1
 - Built the scaffold and full v1 mock API test-first, on branch `feat/backend-mock-api`. Not committed.

@@ -6,12 +6,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health, screenings
+from app.api import health, patients, screenings
 from app.api.deps import build_service
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.core.logging import RequestContextMiddleware, setup_logging
 from app.core.uploads import UploadLimitMiddleware
+from app.services.patient_service import PatientService
 
 logger = logging.getLogger("app.main")
 
@@ -22,6 +23,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if shutil.which("ffmpeg") is None:
         logger.warning("ffmpeg_not_found")
     app.state.service = build_service(app.state.settings)
+    app.state.patients = PatientService(app.state.service)
     yield
 
 
@@ -53,6 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     install_error_handlers(app)
     app.include_router(health.router)
+    app.include_router(patients.router)
     app.include_router(screenings.router)
     _use_400_for_validation_errors(app)
 

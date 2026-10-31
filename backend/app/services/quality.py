@@ -4,7 +4,13 @@ from app.schemas import Location, Quality, QualityIssue
 
 MIN_DURATION_MS = 8000
 
-_MOCK_BPM = {Location.MV: 78, Location.AV: 74, Location.PV: 76, Location.TV: 76}
+_MOCK_BPM = {
+    Location.MV: 78,
+    Location.AV: 74,
+    Location.PV: 76,
+    Location.TV: 76,
+    Location.NK: 75,
+}
 
 
 class QualityChecker(Protocol):

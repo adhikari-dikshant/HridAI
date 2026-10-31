@@ -18,13 +18,25 @@ def analysis_is_running(screening: dict, now: datetime) -> bool:
 
 
 class Repository(Protocol):
+    def create_patient(self, patient: dict) -> None: ...
+
+    def get_patient(self, patient_id: str) -> dict | None: ...
+
+    def update_patient(self, patient_id: str, fields: dict) -> None: ...
+
+    def list_patients(self, owner_uid: str, limit: int) -> list[dict]: ...
+
+    def delete_patient(self, patient_id: str) -> None: ...
+
     def create_screening(self, screening: dict) -> None: ...
 
     def get_screening(self, screening_id: str) -> dict | None: ...
 
     def update_screening(self, screening_id: str, fields: dict) -> None: ...
 
-    def list_screenings(self, owner_uid: str, limit: int) -> list[dict]: ...
+    def list_screenings(
+        self, owner_uid: str, limit: int | None, patient_id: str | None = None
+    ) -> list[dict]: ...
 
     def delete_screening(self, screening_id: str) -> None: ...
 
@@ -39,9 +51,34 @@ class Repository(Protocol):
 
 class InMemoryRepository:
     def __init__(self) -> None:
+        self._patients: dict[str, dict] = {}
         self._screenings: dict[str, dict] = {}
         self._recordings: dict[str, dict[str, dict]] = {}
         self._lock = Lock()
+
+    def create_patient(self, patient: dict) -> None:
+        with self._lock:
+            self._patients[patient["patient_id"]] = deepcopy(patient)
+
+    def get_patient(self, patient_id: str) -> dict | None:
+        with self._lock:
+            return deepcopy(self._patients.get(patient_id))
+
+    def update_patient(self, patient_id: str, fields: dict) -> None:
+        with self._lock:
+            # The patient can be deleted while one of its screenings is finishing.
+            if patient_id in self._patients:
+                self._patients[patient_id].update(deepcopy(fields))
+
+    def list_patients(self, owner_uid: str, limit: int) -> list[dict]:
+        with self._lock:
+            owned = [p for p in self._patients.values() if p["owner_uid"] == owner_uid]
+            owned.sort(key=lambda patient: patient["last_activity_at"], reverse=True)
+            return deepcopy(owned[:limit])
+
+    def delete_patient(self, patient_id: str) -> None:
+        with self._lock:
+            self._patients.pop(patient_id, None)
 
     def create_screening(self, screening: dict) -> None:
         with self._lock:
@@ -56,9 +93,15 @@ class InMemoryRepository:
         with self._lock:
             self._screenings[screening_id].update(deepcopy(fields))
 
-    def list_screenings(self, owner_uid: str, limit: int) -> list[dict]:
+    def list_screenings(
+        self, owner_uid: str, limit: int | None, patient_id: str | None = None
+    ) -> list[dict]:
         with self._lock:
-            owned = [s for s in self._screenings.values() if s["owner_uid"] == owner_uid]
+            owned = [
+                s
+                for s in self._screenings.values()
+                if s["owner_uid"] == owner_uid and patient_id in (None, s["patient_id"])
+            ]
             owned.sort(key=lambda screening: screening["created_at"], reverse=True)
             return deepcopy(owned[:limit])
 

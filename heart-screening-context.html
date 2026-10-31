@@ -86,7 +86,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 
 <!-- ============================== -->
 <h2 id="overview"><span class="n">01</span>Overview and positioning</h2>
-<p>A mobile app that records heart sounds through a phone mic (or a ₹500 stethoscope + collar-mic attachment), checks recording quality, and uses AI to classify the heartbeat as <b>Normal</b>, <b>Needs check-up</b> or <b>Recording unclear</b>. Gemini explains the result in plain Hindi and English. The user can share the result with a doctor.</p>
+<p>A mobile app that records heart sounds from the chest, plus one recording from the neck beside the larynx, through a phone mic (or a ₹500 stethoscope + collar-mic attachment). It checks recording quality and uses AI to classify the heartbeat as <b>Normal</b>, <b>Needs check-up</b> or <b>Recording unclear</b>. One account can hold <b>multiple patient profiles</b>, each with its own screening history. Gemini explains the result in plain Hindi and English. The user can share the result with a doctor.</p>
 <div class="note"><strong>Rule #1:</strong> This is a <b>screening tool, not a diagnosis</b>. Never use the words "diagnose", "detects disease" or "you have X" in UI, API messages, prompts or the pitch. Say "screening", "pre-check", "may need a check-up".</div>
 <ul>
   <li><b>Working name:</b> not final. Shortlist: <b>HridAI</b> (recommended), Dhadkan, Spandan, LubDub. The submitted deck currently says "HeartSense". Repo code-name: <code>heartscreen</code>.</li>
@@ -102,7 +102,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <tr><th>Person</th><th>Owns</th><th>Main deliverables</th></tr>
 <tr><td>Pranav Soni</td><td>Backend, audio pipeline, ML, deployment</td><td>FastAPI service, quality check, model training + export, Gemini integration, Cloud Run deploy</td></tr>
 <tr><td>Friend (React Native)</td><td>Mobile app</td><td>All screens, recording, upload, result UI, Firebase Auth client</td></tr>
-<tr><td>[Member 3]</td><td>TBD (suggested: design + pitch)</td><td>UI design, chest placement illustration, deck, demo video</td></tr>
+<tr><td>[Member 3]</td><td>TBD (suggested: design + pitch)</td><td>UI design, chest and neck placement illustrations, deck, demo video</td></tr>
 <tr><td>[Member 4]</td><td>TBD (suggested: data + testing)</td><td>Dataset prep, test recordings, QA, results table</td></tr>
 </table></div>
 <p class="muted">Shared: API contract (section 8). Any change to request/response shapes needs a message in the team group before merging.</p>
@@ -111,13 +111,14 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <h2 id="scope"><span class="n">03</span>Scope: MVP vs stretch</h2>
 <h3>MVP (must ship for demo)</h3>
 <ul>
-  <li>Consent + patient info form (age, sex, height, weight)</li>
-  <li>Guided recording at 2 chest locations (mitral + aortic), 15 s each</li>
+  <li>Multiple patient profiles per account: create, pick, edit, delete</li>
+  <li>Consent + patient details form (nickname or code, age, sex, height, weight)</li>
+  <li>Guided recording at 2 chest locations (mitral + aortic) and 1 neck location (beside the larynx), 15 s each</li>
   <li>Server-side quality check with "re-record" feedback</li>
   <li>Classification: Normal / Needs check-up / Recording unclear + confidence</li>
   <li>Heart rate (bpm)</li>
   <li>Gemini explanation in Hindi + English</li>
-  <li>Result screen with disclaimer; history list</li>
+  <li>Result screen with disclaimer; history list per patient</li>
   <li>Deployed backend on Cloud Run</li>
 </ul>
 <h3>Stretch (only if MVP is done)</h3>
@@ -129,17 +130,19 @@ pre.mermaid { background: var(--surface); text-align: center; }
   <li>Waveform playback with S1/S2 markers</li>
 </ul>
 <h3>Out of scope</h3>
-<ul><li>Murmur type classification, ECG, on-device/offline model, doctor dashboard, clinical validation. These go in the "future scope" slide only.</li></ul>
+<ul><li>Murmur type classification, ECG, on-device/offline model, doctor dashboard, clinical validation, any classifier or result based on neck audio. These go in the "future scope" slide only.</li></ul>
 
 <!-- ============================== -->
 <h2 id="arch"><span class="n">04</span>Architecture</h2>
 <pre class="mermaid">
 flowchart TD
-  A[RN app: consent + patient info] --> B[RN app: guided recording per chest spot]
+  P[RN app: pick or add patient profile] --> A[RN app: consent + patient details]
+  A --> B[RN app: guided recording per chest and neck spot]
   B -->|multipart upload| C[FastAPI on Cloud Run]
   C --> D{Quality check}
   D -->|rejected| B
-  D -->|accepted| E[DSP preprocess: resample, bandpass, normalize]
+  D -->|accepted chest| E[DSP preprocess: resample, bandpass, normalize]
+  D -->|accepted neck| N[Stored only, not classified]
   E --> F[5 s windows to log-mel spectrograms]
   F --> G[Audio model: fine-tuned CardioPHON / CNN]
   A -.patient data.-> H
@@ -154,6 +157,8 @@ flowchart TD
   <li><b>No AI "enhancement" of audio.</b> Denoising models can erase murmurs (murmurs look like noise) or invent beats. We use classical DSP only, and reject bad audio instead of fixing it.</li>
   <li><b>Same preprocessing in training and inference.</b> One shared Python module (<code>audio.py</code>) is imported by both the training code and the API.</li>
   <li><b>Gemini never classifies.</b> It only explains a result that our model already produced, and summarizes uploaded reports.</li>
+  <li><b>Neck audio is collected but never classified.</b> The chest model has no labelled neck data, so its score on neck audio would mean nothing. Neck recordings get a quality check and are stored, but they do not affect the label, confidence, bpm or threshold.</li>
+  <li><b>Patient profiles sit under the account.</b> One Firebase user owns many patients, and each screening belongs to one patient. A screening keeps a snapshot of the patient's details, so editing a profile later never changes an old result.</li>
   <li><b>Backend owns all writes</b> to Firestore and Storage. The app only talks to our API (simpler security rules).</li>
   <li><b>Synchronous analyze call</b> (a few seconds). No queues or workers for the hackathon.</li>
 </ul>
@@ -180,17 +185,18 @@ flowchart TD
 <div class="tbl"><table>
 <tr><th>#</th><th>Screen</th><th>What it does</th><th>API</th></tr>
 <tr><td>1</td><td>Welcome</td><td>Pick language (Hindi / English). Anonymous Firebase sign-in in background.</td><td>none</td></tr>
-<tr><td>2</td><td>Consent</td><td>Screening disclaimer + data use. Checkbox required to continue.</td><td>none</td></tr>
-<tr><td>3</td><td>Patient info</td><td>Age, sex, height, weight (required: age, sex). Optional symptoms and known conditions.</td><td><code>POST /v1/screenings</code></td></tr>
-<tr><td>4</td><td>Placement guide</td><td>Chest diagram showing the current spot (order: MV → AV → PV → TV). Tips: quiet room, sit still, no talking, phone bottom pressed to bare skin.</td><td>none</td></tr>
-<tr><td>5</td><td>Record</td><td>3 s countdown, 15 s recording, live input level meter, timer, cancel.</td><td>none</td></tr>
-<tr><td>6</td><td>Quality feedback</td><td>Upload, then show accepted ✓ + bpm, or the reason + "Record again". Next spot or continue.</td><td><code>POST /v1/screenings/{id}/recordings</code></td></tr>
-<tr><td>7</td><td>Reports (optional)</td><td>Upload old report photo/PDF. Skippable.</td><td><code>POST /v1/screenings/{id}/reports</code></td></tr>
-<tr><td>8</td><td>Analyzing</td><td>Loader, 5–15 s. Show a reassuring line, not a medical one.</td><td><code>POST /v1/screenings/{id}/analyze</code></td></tr>
-<tr><td>9</td><td>Result</td><td>Label badge, bpm, confidence, explanation (language toggle), disclaimer, share button, heatmap (stretch).</td><td>response of analyze</td></tr>
-<tr><td>10</td><td>History</td><td>List of past screenings with date + label. Delete option.</td><td><code>GET /v1/screenings</code>, <code>DELETE</code></td></tr>
+<tr><td>2</td><td>Patients</td><td>List of saved profiles with nickname, age, sex and last screening date. Filter on the device. Pick one to start a screening or open its history, or tap "Add patient". First launch goes straight to adding a patient.</td><td><code>GET /v1/patients</code></td></tr>
+<tr><td>3</td><td>Consent</td><td>Screening disclaimer + data use, shown for every screening. Checkbox required to continue. If the patient is someone else, they (or their guardian) must agree before the user ticks it.</td><td>none</td></tr>
+<tr><td>4</td><td>Patient details</td><td>New patient: empty form. Saved patient: pre-filled, confirm or edit. Nickname or code, age, sex, height, weight (required: nickname, age, sex). Known conditions are saved on the profile. Symptoms are asked fresh each time.</td><td><code>POST /v1/patients</code> or <code>PATCH /v1/patients/{id}</code>, then <code>POST /v1/screenings</code></td></tr>
+<tr><td>5</td><td>Placement guide</td><td>Chest or neck diagram showing the current spot (MVP order: MV → AV → NK; with all spots: MV → AV → PV → TV → NK). Tips: quiet room, sit still, no talking. Chest: phone bottom pressed to bare skin. Neck: light touch only, see section 7.</td><td>none</td></tr>
+<tr><td>6</td><td>Record</td><td>3 s countdown, 15 s recording, live input level meter, timer, cancel.</td><td>none</td></tr>
+<tr><td>7</td><td>Quality feedback</td><td>Upload, then show accepted ✓ + bpm, or the reason + "Record again". Next spot or continue. The neck step can be skipped.</td><td><code>POST /v1/screenings/{id}/recordings</code></td></tr>
+<tr><td>8</td><td>Reports (optional)</td><td>Upload old report photo/PDF. Skippable.</td><td><code>POST /v1/screenings/{id}/reports</code></td></tr>
+<tr><td>9</td><td>Analyzing</td><td>Loader, 5–15 s. Show a reassuring line, not a medical one.</td><td><code>POST /v1/screenings/{id}/analyze</code></td></tr>
+<tr><td>10</td><td>Result</td><td>Patient nickname, label badge, bpm, confidence, explanation (language toggle), disclaimer, share button, heatmap (stretch).</td><td>response of analyze</td></tr>
+<tr><td>11</td><td>History</td><td>Past screenings of the selected patient with date + label. Delete a screening, or delete the whole patient.</td><td><code>GET /v1/screenings?patient_id=</code>, <code>DELETE</code></td></tr>
 </table></div>
-<p>Minimum to analyze: <b>1 accepted recording</b>. App should push for 2 (MV + AV) in MVP.</p>
+<p>Minimum to analyze: <b>1 accepted chest recording</b>. App should push for 2 (MV + AV) plus the neck recording in MVP. A neck recording alone is not enough.</p>
 
 <!-- ============================== -->
 <h2 id="recording"><span class="n">07</span>Recording spec (frontend)</h2>
@@ -198,18 +204,21 @@ flowchart TD
   <li><b>Format:</b> record with <code>expo-audio</code> high-quality preset: <b>m4a / AAC, mono, 44.1 kHz</b>. Android cannot record WAV natively, so we keep m4a on both platforms. Backend converts with ffmpeg.</li>
   <li><b>Duration:</b> target 15 s, hard minimum 8 s, max 30 s. Auto-stop at 15 s.</li>
   <li><b>File size limit:</b> 5 MB per recording.</li>
-  <li><b>Locations</b> (same codes as the CirCor dataset):
+  <li><b>Locations</b> (chest codes are the same as the CirCor dataset; <code>NK</code> is ours):
     <div class="tbl"><table>
-    <tr><th>Code</th><th>Name</th><th>Where on chest</th></tr>
+    <tr><th>Code</th><th>Name</th><th>Where on body</th></tr>
     <tr><td><code>MV</code></td><td>Mitral</td><td>Left side, 5th rib space, below the nipple line (apex)</td></tr>
     <tr><td><code>AV</code></td><td>Aortic</td><td>Right of breastbone, 2nd rib space</td></tr>
     <tr><td><code>PV</code></td><td>Pulmonic</td><td>Left of breastbone, 2nd rib space</td></tr>
     <tr><td><code>TV</code></td><td>Tricuspid</td><td>Left lower edge of breastbone, 4th–5th rib space</td></tr>
+    <tr><td><code>NK</code></td><td>Neck</td><td>One side of the neck, in the groove between the larynx (voice box) and the long neck muscle, at mid-neck height. This is over the carotid artery. Either side, one recording.</td></tr>
     </table></div>
   </li>
+  <li><b>Neck safety:</b> rest the phone <b>lightly</b> on the skin and never press hard. Firm pressure on the carotid artery can slow the heart and cause fainting, especially in older people. Show this on the placement screen with a "Stop if you feel dizzy" line, and let the user skip the neck step.</li>
   <li><b>Source</b> field: <code>phone_mic</code> or <code>stethoscope_mic</code> (user picks once on the placement screen).</li>
-  <li><b>User instructions</b> (show as 4 short tips with icons): sit still and breathe normally · switch off fan/AC/TV · press the phone's bottom (mic side) firmly on bare skin · don't talk during recording.</li>
-  <li>Ask mic permission on screen 4, not at app launch. Handle "denied" with a settings link.</li>
+  <li><b>User instructions, chest</b> (show as 4 short tips with icons): sit still and breathe normally · switch off fan/AC/TV · press the phone's bottom (mic side) firmly on bare skin · don't talk during recording.</li>
+  <li><b>User instructions, neck</b> (same style): sit still and breathe gently · switch off fan/AC/TV · rest the phone's bottom lightly beside the voice box, on bare skin · don't talk, swallow or clear your throat during recording.</li>
+  <li>Ask mic permission on screen 5, not at app launch. Handle "denied" with a settings link.</li>
 </ul>
 
 <!-- ============================== -->
@@ -217,7 +226,7 @@ flowchart TD
 <h3>Conventions</h3>
 <ul>
   <li>Base URL: <code>EXPO_PUBLIC_API_BASE_URL</code> (Cloud Run URL), all routes under <code>/v1</code>.</li>
-  <li>Auth header on every call except <code>/healthz</code>: <code>Authorization: Bearer &lt;Firebase ID token&gt;</code>. Backend verifies with <code>firebase_admin.auth.verify_id_token</code>. Users only see their own screenings.</li>
+  <li>Auth header on every call except <code>/healthz</code>: <code>Authorization: Bearer &lt;Firebase ID token&gt;</code>. Backend verifies with <code>firebase_admin.auth.verify_id_token</code>. Users only see their own patients and screenings.</li>
   <li>JSON keys in <code>snake_case</code>. Timestamps ISO 8601 UTC. IDs are strings.</li>
   <li>Language: <code>"en"</code> or <code>"hi"</code>. User-facing messages are returned in both (<code>message_en</code>, <code>message_hi</code>).</li>
   <li><b>Mock mode:</b> backend env <code>MOCK_INFERENCE=true</code> returns fixed realistic results, so the app can be built before the model is ready.</li>
@@ -235,8 +244,8 @@ flowchart TD
 <tr><th>Status</th><th>When</th></tr>
 <tr><td>400</td><td>Bad input (missing field, invalid location code)</td></tr>
 <tr><td>401</td><td>Missing / invalid Firebase token</td></tr>
-<tr><td>404</td><td>Screening not found or not yours</td></tr>
-<tr><td>409</td><td>Wrong state (e.g. analyze with no accepted recording)</td></tr>
+<tr><td>404</td><td>Patient or screening not found or not yours (<code>patient_not_found</code>, <code>screening_not_found</code>)</td></tr>
+<tr><td>409</td><td>Wrong state (e.g. analyze with no accepted chest recording)</td></tr>
 <tr><td>413</td><td>File too large</td></tr>
 <tr><td>415</td><td>Unsupported file type</td></tr>
 <tr><td>500</td><td>Server error (log has request id)</td></tr>
@@ -246,37 +255,72 @@ flowchart TD
 <p class="ep"><span class="verb">GET</span>/healthz</p>
 <pre><code>{ "status": "ok", "model_version": "cardiophon-ft-0.1", "mock": false }</code></pre>
 
+<p class="ep"><span class="verb">POST</span>/v1/patients</p>
+<p>Creates a patient profile under the signed-in user. The consent from the current flow is sent here too, so no data is stored before consent.</p>
+<pre><code>// request
+{
+  "consent": { "accepted": true, "version": "v1" },
+  "label": "Papa",                   // required, 1-40 chars. Nickname or code, not a full name
+  "age_years": 34,                   // required, 0-110
+  "sex": "male",                     // required: male | female | other
+  "height_cm": 172,                  // optional
+  "weight_kg": 70,                   // optional
+  "known_conditions": []             // optional: hypertension | diabetes | known_heart_disease | other
+}
+
+// 201 response
+{
+  "patient_id": "pat_4d9q2m",
+  "label": "Papa",
+  "age_years": 34,
+  "sex": "male",
+  "height_cm": 172,
+  "weight_kg": 70,
+  "known_conditions": [],
+  "last_screening_at": null,
+  "created_at": "2026-11-02T10:14:00Z",
+  "updated_at": "2026-11-02T10:14:00Z"
+}</code></pre>
+
+<p class="ep"><span class="verb">GET</span>/v1/patients?limit=100</p>
+<p>Returns <code>{ "items": [Patient] }</code>, newest or most recently screened first. <code>limit</code> is 1–200. There is no server search; the app filters this list on the device.</p>
+
+<p class="ep"><span class="verb">GET</span>/v1/patients/{patient_id}</p>
+<p>Returns one <code>Patient</code>.</p>
+
+<p class="ep"><span class="verb">PATCH</span>/v1/patients/{patient_id}</p>
+<p>Send only the fields that changed. Returns the updated <code>Patient</code>. Past screenings keep their snapshot.</p>
+
+<p class="ep"><span class="verb">DELETE</span>/v1/patients/{patient_id}</p>
+<p>Deletes the profile and all its screenings, recordings and reports (Firestore + Storage). Returns 204.</p>
+
 <p class="ep"><span class="verb">POST</span>/v1/screenings</p>
-<p>Creates a screening with patient info and consent.</p>
+<p>Creates a screening for one patient. The backend copies the patient's current details into the screening as a snapshot. Symptoms belong to the screening, not the profile.</p>
 <pre><code>// request
 {
   "language": "hi",
   "consent": { "accepted": true, "version": "v1" },
-  "patient": {
-    "age_years": 34,                 // required, 0-110
-    "sex": "male",                   // required: male | female | other
-    "height_cm": 172,                // optional
-    "weight_kg": 70,                 // optional
-    "symptoms": ["breathlessness"],  // optional: chest_pain | breathlessness | palpitations | fatigue | fainting | swelling
-    "known_conditions": []           // optional: hypertension | diabetes | known_heart_disease | other
-  }
+  "patient_id": "pat_4d9q2m",        // required; 404 patient_not_found if missing or not yours
+  "symptoms": ["breathlessness"]     // optional: chest_pain | breathlessness | palpitations | fatigue | fainting | swelling
 }
 
 // 201 response
 {
   "screening_id": "scr_8f2k1x",
+  "patient_id": "pat_4d9q2m",
   "status": "awaiting_recordings",
-  "required_locations": ["MV", "AV"],
+  "required_locations": ["MV", "AV", "NK"],
   "optional_locations": ["PV", "TV"],
   "created_at": "2026-11-02T10:15:00Z"
 }</code></pre>
+<p class="muted"><code>required_locations</code> is what the app should ask for. The hard rule for analyze is still 1 accepted chest recording, so a skipped neck step never blocks a result.</p>
 
 <p class="ep"><span class="verb">POST</span>/v1/screenings/{screening_id}/recordings</p>
 <p><code>multipart/form-data</code>. Re-uploading the same location replaces the previous recording for that location.</p>
 <pre><code>// form fields
 file          (binary, audio/m4a | audio/mp4 | audio/x-m4a | audio/wav, max 5 MB)
-location      MV | AV | PV | TV
-source        phone_mic | stethoscope_mic
+location      MV | AV | PV | TV | NK
+source       phone_mic | stethoscope_mic
 duration_ms   15000
 platform      ios | android
 
@@ -302,12 +346,13 @@ platform      ios | android
 <div class="tbl"><table>
 <tr><th>Issue code</th><th>Meaning</th><th>Message to user (EN)</th></tr>
 <tr><td><code>too_short</code></td><td>Under 8 s after trimming</td><td>Recording was too short. Hold still for the full 15 seconds.</td></tr>
-<tr><td><code>too_quiet</code></td><td>Signal level below floor</td><td>Heartbeat was too faint. Press the phone more firmly on bare skin.</td></tr>
+<tr><td><code>too_quiet</code></td><td>Signal level below floor</td><td>Chest: Heartbeat was too faint. Press the phone more firmly on bare skin.<br>Neck: Heartbeat was too faint. Move the phone a little, keeping a light touch. Do not press harder.</td></tr>
 <tr><td><code>clipping</code></td><td>Signal saturated</td><td>Sound was distorted. Hold the phone steady without rubbing.</td></tr>
 <tr><td><code>too_noisy</code></td><td>Too much energy outside heart band</td><td>Too much background noise. Turn off the fan and record again.</td></tr>
-<tr><td><code>no_heartbeat_detected</code></td><td>No periodic beat found</td><td>We couldn't hear a heartbeat. Check the position on the chest guide.</td></tr>
+<tr><td><code>no_heartbeat_detected</code></td><td>No periodic beat found</td><td>Chest: We couldn't hear a heartbeat. Check the position on the chest guide.<br>Neck: We couldn't hear a heartbeat. Check the position on the neck guide.</td></tr>
 <tr><td><code>heart_rate_out_of_range</code></td><td>Estimated rate outside 40–180 bpm</td><td>Reading was unclear. Please record again.</td></tr>
 </table></div>
+<p class="muted">Messages depend on <code>location</code>. The backend must never tell a user to press harder on the neck, including in the Hindi text.</p>
 
 <p class="ep"><span class="verb">POST</span>/v1/screenings/{screening_id}/reports <span class="muted">(stretch)</span></p>
 <pre><code>// multipart: file (image/jpeg | image/png | application/pdf, max 10 MB)
@@ -320,7 +365,7 @@ platform      ios | android
 <p class="muted">Upload before calling analyze so the summary is included in the explanation. Reports are never used by the classifier.</p>
 
 <p class="ep"><span class="verb">POST</span>/v1/screenings/{screening_id}/analyze</p>
-<p>No body. Runs model + Gemini. Needs at least 1 accepted recording (else 409 <code>no_accepted_recordings</code>). Timeout on the app side: 45 s.</p>
+<p>No body. Runs model + Gemini. Needs at least 1 accepted chest recording (else 409 <code>no_accepted_recordings</code>). Timeout on the app side: 45 s. <code>per_location</code> and <code>heart_rate_bpm</code> cover chest spots only, so <code>NK</code> never appears in this response.</p>
 <pre><code>// 200 response
 {
   "screening_id": "scr_8f2k1x",
@@ -350,24 +395,31 @@ platform      ios | android
 }</code></pre>
 
 <p class="ep"><span class="verb">GET</span>/v1/screenings/{screening_id}</p>
-<p>Returns the full screening: patient, recordings (without audio bytes), status, and the analyze response if completed.</p>
+<p>Returns the full screening: <code>patient_id</code>, patient snapshot, recordings including <code>NK</code> (without audio bytes), status, and the analyze response if completed.</p>
 
-<p class="ep"><span class="verb">GET</span>/v1/screenings?limit=20</p>
-<pre><code>{ "items": [ { "screening_id": "scr_8f2k1x", "created_at": "...", "status": "completed", "label": "needs_checkup" } ] }</code></pre>
+<p class="ep"><span class="verb">GET</span>/v1/screenings?patient_id=pat_4d9q2m&amp;limit=20</p>
+<p><code>patient_id</code> is optional. Without it, the list covers all of the user's patients. An unknown patient returns 404 <code>patient_not_found</code>. Newest first.</p>
+<pre><code>{ "items": [ { "screening_id": "scr_8f2k1x", "patient_id": "pat_4d9q2m", "created_at": "...", "status": "completed", "label": "needs_checkup" } ] }</code></pre>
 
 <p class="ep"><span class="verb">DELETE</span>/v1/screenings/{screening_id}</p>
 <p>Deletes the screening, its recordings and reports (Firestore + Storage). Returns 204.</p>
 
 <h3>Screening status values</h3>
-<p><code>awaiting_recordings</code> → <code>ready</code> (≥1 accepted) → <code>analyzing</code> → <code>completed</code> | <code>failed</code></p>
+<p><code>awaiting_recordings</code> → <code>ready</code> (≥1 accepted chest recording) → <code>analyzing</code> → <code>completed</code> | <code>failed</code></p>
 
 <h3>Shared TypeScript types (copy into app)</h3>
 <pre><code>export type Lang = "en" | "hi";
-export type Location = "MV" | "AV" | "PV" | "TV";
+export type ChestLocation = "MV" | "AV" | "PV" | "TV";
+export type Location = ChestLocation | "NK";
 export type Label = "normal" | "needs_checkup" | "unclear";
 export type QualityIssue = "too_short" | "too_quiet" | "clipping" | "too_noisy"
   | "no_heartbeat_detected" | "heart_rate_out_of_range";
 
+export interface Patient {
+  patient_id: string; label: string; age_years: number; sex: "male" | "female" | "other";
+  height_cm: number | null; weight_kg: number | null; known_conditions: string[];
+  last_screening_at: string | null; created_at: string; updated_at: string;
+}
 export interface Quality { score: number; duration_s: number; heart_rate_bpm: number | null; issues: QualityIssue[]; }
 export interface RecordingResponse {
   recording_id: string; location: Location; accepted: boolean; quality: Quality;
@@ -377,7 +429,7 @@ export interface AnalyzeResponse {
   screening_id: string; status: "completed" | "failed";
   result: {
     label: Label; confidence: number; abnormal_probability: number; heart_rate_bpm: number | null;
-    per_location: { location: Location; abnormal_probability: number; quality_score: number; heatmap_url: string | null }[];
+    per_location: { location: ChestLocation; abnormal_probability: number; quality_score: number; heatmap_url: string | null }[];
     used_patient_data: boolean; model_version: string;
   };
   explanation: Record&lt;Lang, string&gt;;
@@ -389,10 +441,17 @@ export interface AnalyzeResponse {
 <!-- ============================== -->
 <h2 id="data"><span class="n">09</span>Data model and storage</h2>
 <h3>Firestore</h3>
-<pre><code>screenings/{screening_id}
-  owner_uid, created_at, updated_at, status, language
+<pre><code>patients/{patient_id}
+  owner_uid, label, age_years, sex, height_cm, weight_kg, known_conditions[]
   consent { accepted, version, accepted_at }
-  patient { age_years, sex, height_cm, weight_kg, symptoms[], known_conditions[] }
+  last_screening_at                              // latest completed screening, or null
+  last_activity_at                               // sort key, set on create and new screening; never returned
+  created_at, updated_at
+
+screenings/{screening_id}
+  owner_uid, patient_id, created_at, updated_at, status, language
+  consent { accepted, version, accepted_at }
+  patient { age_years, sex, height_cm, weight_kg, symptoms[], known_conditions[] }   // snapshot, no label
   result  { ...same as analyze "result" }       // after analyze
   explanation { en, hi }
   model_version
@@ -403,15 +462,17 @@ screenings/{screening_id}/recordings/{recording_id}
 
 screenings/{screening_id}/reports/{report_id}
   storage_path, mime_type, summary_en, summary_hi, created_at</code></pre>
+<p>Composite indexes needed: <code>patients</code> on <code>owner_uid</code> + <code>last_activity_at</code>, and <code>screenings</code> on <code>owner_uid</code> + <code>patient_id</code> + <code>created_at</code>.</p>
 <h3>Cloud Storage</h3>
 <pre><code>gs://&lt;bucket&gt;/screenings/{screening_id}/recordings/{recording_id}.m4a   // original upload
-gs://&lt;bucket&gt;/screenings/{screening_id}/recordings/{recording_id}.wav   // converted, 2 kHz mono
+gs://&lt;bucket&gt;/screenings/{screening_id}/recordings/{recording_id}.wav   // converted, 4 kHz mono
 gs://&lt;bucket&gt;/screenings/{screening_id}/reports/{report_id}.{jpg|png|pdf}
 gs://&lt;bucket&gt;/screenings/{screening_id}/heatmaps/{location}.png         // stretch
 gs://&lt;project&gt;-ml/models/{model_version}/                               // separate bucket; runtime has no access</code></pre>
 <p>Security rules: <b>deny all client reads/writes</b>. Only the backend (Admin SDK) touches Firestore/Storage. Heatmaps are served through short-lived signed URLs.</p>
 <p>The data bucket has soft delete off, so deleting a screening really deletes its audio, and a 30-day lifecycle rule on <code>screenings/</code> as a backstop. Rejected recordings keep metadata only; their audio is deleted after the quality check.</p>
-<p><b>No names, phone numbers or addresses are stored.</b></p>
+<p>Profiles stay until the user deletes them. The 30-day rule applies to audio, not to profiles.</p>
+<p><b>No phone numbers or addresses are stored, and full names are not asked for.</b> The only free-text identifier is the patient <code>label</code>, a nickname or code such as "Papa" or "Camp-12". The form hint says not to enter a full name, but a user can still type one, so treat <code>label</code> as personal data: it stays out of logs, Gemini prompts, screening snapshots and share text.</p>
 
 <!-- ============================== -->
 <h2 id="pipeline"><span class="n">10</span>Audio pipeline (backend)</h2>
@@ -420,13 +481,12 @@ gs://&lt;project&gt;-ml/models/{model_version}/                               //
 <tr><th>Step</th><th>What</th><th>Starting value</th></tr>
 <tr><td>1. Decode</td><td>ffmpeg → mono float32 PCM, from a temp file (not stdin)</td><td><code>ffmpeg -protocol_whitelist file -t 35 -i in.m4a -ac 1 -f f32le pipe:1</code>. Empty output counts as <code>unsupported_audio</code>.</td></tr>
 <tr><td>2. Trim</td><td>Drop first and last 1 s (handling noise when placing/removing phone)</td><td>1.0 s each side</td></tr>
-<tr><td>3. Resample</td><td>To one target rate for all data</td><td><code>TARGET_SR = 2000</code> Hz (PhysioNet 2016 is 2 kHz, CirCor is 4 kHz). Use the pretrained model's rate if it needs a different one.</td></tr>
-<tr><td>4. Bandpass</td><td>Butterworth, zero-phase (<code>scipy.signal.butter</code> + <code>sosfiltfilt</code>)</td><td>Order 4, 25–400 Hz</td></tr>
+<tr><td>3. Resample</td><td>To one target rate for all data</td><td><code>sample_rate = 4000</code> Hz, CardioPHON's rate.</td></tr>
+<tr><td>4. Bandpass</td><td>Butterworth, zero-phase (<code>scipy.signal.butter</code> + <code>sosfiltfilt</code>), for quality checks only</td><td>Order 4, 25–400 Hz. The model gets unfiltered audio.</td></tr>
 <tr><td>5. Spike removal</td><td>Remove friction spikes (Schmidt et al. method)</td><td>Optional</td></tr>
 <tr><td>6. Quality check</td><td>See below. Runs before normalizing, so level checks see the real signal</td><td>Reject → <code>accepted: false</code></td></tr>
 <tr><td>7. Normalize</td><td>Scale amplitude</td><td>Divide by max abs value (peak normalize)</td></tr>
-<tr><td>8. Segment</td><td>Fixed windows</td><td>5 s windows, 2.5 s hop; drop the last partial window</td></tr>
-<tr><td>9. Features</td><td>Log-mel spectrogram per window</td><td><code>n_fft=256</code>, <code>hop_length=40</code> (20 ms), <code>n_mels=64</code>, <code>fmin=20</code>, <code>fmax=400</code> (provisional until the model trial); then <code>log(1e-6 + S)</code> and per-window standardization</td></tr>
+<tr><td>8. Features</td><td>Log-mel spectrogram of the whole recording, no windows</td><td><code>n_fft=512</code>, <code>hop_length=160</code> (40 ms), <code>n_mels=64</code>, <code>fmin=60</code>, <code>fmax=2000</code>; then <code>log(S + 1.19e-7)</code> and CardioPHON's fixed normalization</td></tr>
 </table></div>
 <h3>Quality check rules (all must pass)</h3>
 <ul>
@@ -439,6 +499,13 @@ gs://&lt;project&gt;-ml/models/{model_version}/                               //
 </ul>
 <p>Audio past 35 s is not decoded, which enforces the 30 s maximum without a new error code.</p>
 <p>Tune thresholds on: dataset recordings marked good, dataset recordings marked unclear, and ~20 consented team phone recordings (quiet room vs fan on vs talking).</p>
+<h3>Neck recordings (<code>NK</code>)</h3>
+<ul>
+  <li>Steps 1–6 run as normal, then processing stops. Steps 7–8 and the model are skipped.</li>
+  <li>Quality thresholds are stored per location type (chest vs neck). Chest values will not fit, because the neck adds breath sounds, swallowing and voice, and the pulse thump is strong at low frequency.</li>
+  <li>Tune neck thresholds on ~20 consented team recordings: at rest, breathing heavily, swallowing, talking. No dataset covers this, so until then keep the neck thresholds loose and log the outcome counts.</li>
+  <li>Mock mode needs a fixed bpm and quality result for <code>NK</code>.</li>
+</ul>
 
 <!-- ============================== -->
 <h2 id="ml"><span class="n">11</span>ML model and training</h2>
@@ -465,8 +532,8 @@ gs://&lt;project&gt;-ml/models/{model_version}/                               //
 <ol>
   <li><b>Baseline first</b> (day 1): small CNN on log-mel windows. Proves the pipeline end to end.</li>
   <li><b>Main model:</b> fine-tune pretrained <a href="https://arxiv.org/abs/2511.04533">CardioPHON</a> (self-supervised on 6 heart sound datasets, includes quality assessment). Run a one-day trial first to confirm its weights, licence, sample rate and input shape. If weights or code are hard to use in time, fine-tune a general pretrained audio CNN instead.</li>
-  <li><b>Window → recording:</b> mean of window probabilities.</li>
-  <li><b>Recording → screening:</b> max over locations (favours sensitivity: one bad spot flags the screening).</li>
+  <li><b>Classifier:</b> the checkpoint holds only the encoder, so we freeze it and train a small classifier in <code>ml/notebooks/train_cardiophon_head.ipynb</code>.</li>
+  <li><b>Recording → screening:</b> max over chest locations (favours sensitivity: one bad spot flags the screening). <code>NK</code> is excluded.</li>
   <li><b>Metadata fusion (late fusion):</b> off for the MVP, so <code>used_patient_data</code> is false. CirCor covers ages 0–21, so adult inputs are extrapolation, and missing flags can act as a dataset identifier. Add it only if it beats audio-only on held-out data with missing flags removed. If used: logistic regression or small MLP on <code>[audio_probability, age_years, sex, height_cm, weight_kg, bmi]</code>. Map CirCor age groups to midpoint years and fill missing values with training medians. Report results with and without metadata.</li>
 </ol>
 
@@ -490,6 +557,7 @@ gs://&lt;project&gt;-ml/models/{model_version}/                               //
 <ul>
   <li>CirCor is pediatric; adult performance is unproven.</li>
   <li>Training data is stethoscope audio; phone mic audio is different (domain gap).</li>
+  <li>Neither dataset has labelled neck recordings, so the neck recording does not affect the result. Say we collect it for future work; never claim the app assesses the neck or carotid artery.</li>
   <li>No clinical validation yet.</li>
 </ul>
 
@@ -501,7 +569,7 @@ gs://&lt;project&gt;-ml/models/{model_version}/                               //
   <li>Model: a current Gemini Flash-class model. Pin the exact ID in <code>GEMINI_MODEL</code> (<code>gemini-3.5-flash</code>).</li>
   <li>Temperature 0.2. Request JSON output. Timeout 15 s.</li>
   <li><b>Fallback:</b> if Gemini fails or times out, use fixed template text per label. The result must never depend on Gemini.</li>
-  <li>Do not send names or any identifiers to Gemini. Only age, sex, label, probabilities, bpm, locations, report summary.</li>
+  <li>Do not send names or any identifiers to Gemini, including the patient <code>label</code> and <code>patient_id</code>. Only age, sex, result label, probabilities, bpm, chest locations, report summary.</li>
 </ul>
 <h3>Explanation prompt (starting version)</h3>
 <pre><code>SYSTEM:
@@ -534,27 +602,28 @@ If the image is not a medical report, return report_type "other" and say so.</co
 <h2 id="result"><span class="n">13</span>Result logic and UI copy</h2>
 <div class="tbl"><table>
 <tr><th>Label</th><th>Rule</th><th>Badge colour</th><th>Headline (EN / HI)</th></tr>
-<tr><td><code>unclear</code></td><td>No accepted recording reached analyze, or all accepted recordings have quality score below 0.5</td><td class="muted">Grey</td><td>Recording unclear · रिकॉर्डिंग साफ़ नहीं है</td></tr>
+<tr><td><code>unclear</code></td><td>No accepted chest recording reached analyze, or all accepted chest recordings have quality score below 0.5</td><td class="muted">Grey</td><td>Recording unclear · रिकॉर्डिंग साफ़ नहीं है</td></tr>
 <tr><td><code>needs_checkup</code></td><td><code>abnormal_probability ≥ T</code> (T chosen on validation for sensitivity ≥ 0.85)</td><td class="warn">Amber (not red)</td><td>Please get a check-up · कृपया डॉक्टर से जाँच कराएँ</td></tr>
 <tr><td><code>normal</code></td><td><code>abnormal_probability &lt; T</code></td><td class="ok">Green</td><td>No unusual sound found · कोई असामान्य आवाज़ नहीं मिली</td></tr>
 </table></div>
 <ul>
   <li><code>confidence</code> = <code>abnormal_probability</code> for needs_checkup, <code>1 − abnormal_probability</code> for normal. Show as "High / Medium / Low", not a raw percent: High ≥ 0.8, Medium 0.6–0.8, Low &lt; 0.6.</li>
   <li>Disclaimer is always visible on the result screen, not hidden behind a tap.</li>
-  <li>Share text: label + bpm + date + disclaimer. No patient identifiers.</li>
+  <li>Share text: result label + bpm + date + disclaimer. No patient identifiers; the patient nickname is shown in the app only.</li>
+  <li>The neck recording is never mentioned as a finding. Results are worded as chest heart sounds only.</li>
 </ul>
 
 <!-- ============================== -->
 <h2 id="repo"><span class="n">14</span>Repo layout and local setup</h2>
 <pre><code>heartscreen/
 ├── app/                      # React Native (Expo, TypeScript)
-│   ├── src/screens/          # Welcome, Consent, PatientInfo, Guide, Record, Quality, Reports, Analyzing, Result, History
+│   ├── src/screens/          # Welcome, Patients, Consent, PatientDetails, Guide, Record, Quality, Reports, Analyzing, Result, History
 │   ├── src/api/              # client.ts, types.ts (copy of section 8 types)
 │   ├── src/i18n/             # en.json, hi.json
-│   └── assets/chest-guide/   # placement illustrations
+│   └── assets/placement-guide/   # chest and neck illustrations
 ├── backend/
 │   ├── app/main.py
-│   ├── app/api/screenings.py
+│   ├── app/api/{patients.py, screenings.py}
 │   ├── app/core/{config.py, auth.py, errors.py}
 │   ├── app/services/{audio.py, quality.py, features.py, model.py, fusion.py, gemini.py, storage.py}
 │   ├── app/schemas.py
@@ -621,7 +690,7 @@ google-genai</code></pre>
   <li><b>Min instances = 1 on demo day</b> to avoid cold starts (model load takes seconds). Set back to 0 after.</li>
   <li>Docker image: <code>python:3.11-slim-bookworm</code> + <code>apt-get install ffmpeg</code> + ONNX Runtime. Load the model once at startup, not per request.</li>
   <li>Dedicated service account with least privilege. No Gemini key, because Vertex AI uses that account.</li>
-  <li>Logs: request id, screening id, durations, model version. <b>Never log patient data or audio.</b></li>
+  <li>Logs: request id, screening id, durations, model version. <b>Never log patient data, profile labels or audio.</b></li>
   <li>The model stays inside the Cloud Run container; no Vertex AI endpoint.</li>
 </ul>
 <p>Full steps and commands: <code>backend/docs/DEPLOY.md</code>. Deploy with that guide only, because it sets the production login and storage settings.</p>
@@ -630,8 +699,11 @@ google-genai</code></pre>
 <h2 id="privacy"><span class="n">16</span>Privacy, safety, legal</h2>
 <ul>
   <li><b>Consent screen</b> before any data is collected. Store consent version + timestamp.</li>
-  <li>Collect the minimum: no name, phone, address or exact date of birth.</li>
-  <li>Users can delete a screening (all audio and reports).</li>
+  <li>Consent is per screening. When an ASHA worker or relative records someone else, that person (or their guardian) gives consent, not the app user.</li>
+  <li>Collect the minimum: no phone, address, exact date of birth or full name. Profiles use a nickname or code.</li>
+  <li>Users can delete a screening (all audio and reports) or a whole patient profile (all of that patient's screenings).</li>
+  <li><b>Neck recording:</b> light touch only, skippable, with a stop-if-dizzy warning (section 7). A doctor should review this instruction before real users.</li>
+  <li>A neck recording can also capture voice if the person talks. It gets the same 30-day limit and deletion rules as other audio.</li>
   <li>Audio is kept for at most 30 days. Rejected recordings keep metadata only.</li>
   <li>Get legal review before real users, covering minors' consent and Google's Generative AI health restrictions.</li>
   <li>Follow the spirit of India's Digital Personal Data Protection Act, 2023: clear purpose, consent, deletion on request.</li>
@@ -639,14 +711,14 @@ google-genai</code></pre>
   <li>Team test recordings: only from people who agreed, and never used to claim accuracy.</li>
   <li>Wording: "screening", "pre-check", "may need a check-up". Never "diagnosis".</li>
 </ul>
-<p><b>Consent text (draft, EN):</b> "This app records your heartbeat and uses AI to check if it sounds normal. It is a screening tool and does not replace a doctor. Your recordings and basic details (age, sex, height, weight) are stored securely to give you a result. We do not collect your name or phone number. You can delete your data at any time."</p>
+<p><b>Consent text (draft, EN):</b> "This app records sounds from your chest and neck and uses AI to check if your heartbeat sounds normal. It is a screening tool and does not replace a doctor. Your recordings and a saved profile (a nickname or code, age, sex, height, weight) are stored securely to give you a result and keep your history. Please do not enter a full name or phone number. You can delete your data at any time."</p>
 
 <!-- ============================== -->
 <h2 id="demo"><span class="n">17</span>Demo plan</h2>
 <ul>
   <li>Keep a <b>demo build</b> installed on 2 phones (one Android, one iOS if possible).</li>
   <li><code>demo/</code> folder with dataset recordings: 1 clear normal, 1 clear murmur, 1 noisy (to show the quality check rejecting it). Add a hidden "Use sample recording" button in demo builds.</li>
-  <li>Live flow: one real phone recording (quality check + bpm), then a sample murmur file for the "needs check-up" result.</li>
+  <li>Live flow: pick a patient from 2–3 saved profiles, make one real phone recording (quality check + bpm), show the neck step, then use a sample murmur file for the "needs check-up" result. Finish by switching patient to show a separate history.</li>
   <li>Record a 60–90 s screen video of the full flow as backup if Wi-Fi fails.</li>
   <li>Warm the backend (min instances 1) 30 minutes before.</li>
   <li>Have the metrics table (sensitivity, specificity, AUC) ready on a slide.</li>
@@ -667,10 +739,13 @@ google-genai</code></pre>
 <h3>Phase 1: core</h3>
 <ul class="check">
   <li>audio.py: decode, trim, resample, bandpass, normalize, segment, features</li>
-  <li>quality.py with heart rate</li>
+  <li>quality.py with heart rate, with separate neck thresholds and messages</li>
+  <li>Patient profile endpoints and <code>patient_id</code> on screenings, in mock mode first</li>
+  <li><code>NK</code> location: upload and quality check, excluded from analyze</li>
   <li>Patient-level splits saved</li>
   <li>Baseline CNN trained, metrics logged</li>
-  <li>App: patient form, guide, record, upload, quality feedback against mock API</li>
+  <li>App: patient list, patient form, guide, record, upload, quality feedback against mock API</li>
+  <li>Neck placement illustration and safety text, in English and Hindi</li>
 </ul>
 <h3>Phase 2: model + integration</h3>
 <ul class="check">
@@ -678,12 +753,12 @@ google-genai</code></pre>
   <li>Metadata fusion trained, with/without comparison</li>
   <li>Real inference behind <code>/analyze</code></li>
   <li>Gemini explanation + fallback templates</li>
-  <li>App: analyzing + result + history screens wired to real API</li>
+  <li>App: analyzing + result + per-patient history screens wired to real API</li>
   <li>Hindi strings done</li>
 </ul>
 <h3>Phase 3: polish</h3>
 <ul class="check">
-  <li>Quality thresholds tuned on real phone recordings</li>
+  <li>Quality thresholds tuned on real phone recordings, chest and neck</li>
   <li>Stretch items (heatmap, reports, share) if time</li>
   <li>Demo build, sample recordings, backup video</li>
   <li>Deck updated with real metrics and final name</li>
@@ -700,6 +775,11 @@ google-genai</code></pre>
 <tr><td>Model hosting</td><td>In container vs Vertex AI endpoint</td><td>In container</td></tr>
 <tr><td>Main model</td><td>CardioPHON vs fallback CNN</td><td>Decide after 1 day of trying CardioPHON</td></tr>
 <tr><td>Adult data gap</td><td>Find adult labelled data vs state as limitation</td><td>State as limitation</td></tr>
+<tr><td>Purpose of the neck recording</td><td>Collect for later vs build a neck model vs use it for bpm only</td><td>Collect and quality-check only; no effect on the result</td></tr>
+<tr><td>Neck side</td><td>One side vs both sides (<code>NKL</code> + <code>NKR</code>)</td><td>One recording, either side (<code>NK</code>)</td></tr>
+<tr><td>Neck data retention</td><td>Keep to 30 days vs longer with separate consent, which a neck model would need</td><td>30 days, same as other audio</td></tr>
+<tr><td>Profile identifier</td><td>Server-stored nickname vs nickname on the device only</td><td>Server-stored nickname or code</td></tr>
+<tr><td>Durable accounts</td><td>Anonymous only vs link to Google or phone sign-in. Reinstalling the app loses an anonymous account, and with it every patient profile</td><td>Anonymous for the demo; linked sign-in before any real ASHA use</td></tr>
 </table></div>
 
 <!-- ============================== -->
@@ -711,6 +791,8 @@ google-genai</code></pre>
 <tr><td>Murmur</td><td>Extra whooshing sound from turbulent blood flow. Can be harmless or a sign of valve disease.</td></tr>
 <tr><td>Auscultation</td><td>Listening to body sounds, usually with a stethoscope.</td></tr>
 <tr><td>PCG</td><td>Phonocardiogram: a recording of heart sounds.</td></tr>
+<tr><td>Larynx</td><td>The voice box at the front of the neck. The Adam's apple is part of it.</td></tr>
+<tr><td>Carotid artery</td><td>The main artery up each side of the neck, beside the larynx. Our <code>NK</code> recording sits over it. Never press on it firmly.</td></tr>
 <tr><td>Bandpass filter</td><td>Keeps frequencies in a range (here 25–400 Hz) and removes the rest.</td></tr>
 <tr><td>Mel-spectrogram</td><td>A picture of sound: time on x, pitch on y, loudness as colour. The CNN reads this like an image.</td></tr>
 <tr><td>Sensitivity</td><td>Of all truly abnormal cases, the share we flag. Our priority.</td></tr>

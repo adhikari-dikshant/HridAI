@@ -5,8 +5,14 @@ import pytest
 
 from app.core.errors import ERRORS
 from app.core.ids import new_id
-from app.core.messages import DISCLAIMER, HEADLINES, ISSUE_MESSAGES
-from app.schemas import Label, QualityIssue
+from app.core.messages import (
+    DISCLAIMER,
+    HEADLINES,
+    ISSUE_MESSAGES,
+    NECK_ISSUE_MESSAGES,
+    issue_message,
+)
+from app.schemas import Label, Location, QualityIssue
 from app.services.repository import InMemoryRepository
 from app.services.result import LocationScore, build_result
 from app.services.templates import TemplateExplainer
@@ -31,6 +37,26 @@ def test_every_quality_issue_has_both_languages():
     for message_en, message_hi in ISSUE_MESSAGES.values():
         assert message_en
         assert DEVANAGARI.search(message_hi)
+
+
+def test_neck_messages_have_both_languages():
+    for message_en, message_hi in NECK_ISSUE_MESSAGES.values():
+        assert message_en
+        assert DEVANAGARI.search(message_hi)
+
+
+@pytest.mark.parametrize("issue", list(QualityIssue))
+def test_neck_message_never_says_to_press_harder(issue):
+    message_en, message_hi = issue_message(issue, Location.NK)
+
+    assert "more firmly" not in message_en
+    assert "मज़बूती" not in message_hi
+
+
+def test_chest_message_ignores_neck_wording():
+    assert issue_message(QualityIssue.too_quiet, Location.MV) == (
+        ISSUE_MESSAGES[QualityIssue.too_quiet]
+    )
 
 
 def test_every_error_has_both_languages():

@@ -18,11 +18,12 @@ ERRORS: dict[str, tuple[int, str, str]] = {
     "unauthorized": (401, "Please sign in again.", "कृपया दोबारा साइन इन करें।"),
     "not_found": (404, "This page does not exist.", "यह पेज मौजूद नहीं है।"),
     "screening_not_found": (404, "This screening does not exist.", "यह जाँच मौजूद नहीं है।"),
+    "patient_not_found": (404, "This patient does not exist.", "यह मरीज़ मौजूद नहीं है।"),
     "method_not_allowed": (405, "This action is not allowed.", "यह कार्रवाई संभव नहीं है।"),
     "no_accepted_recordings": (
         409,
-        "At least one accepted recording is needed.",
-        "कम से कम एक स्वीकृत रिकॉर्डिंग ज़रूरी है।",
+        "At least one accepted chest recording is needed.",
+        "छाती की कम से कम एक स्वीकृत रिकॉर्डिंग ज़रूरी है।",
     ),
     "analysis_in_progress": (
         409,

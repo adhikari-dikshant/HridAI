@@ -45,6 +45,375 @@
         }
       }
     },
+    "/v1/patients": {
+      "post": {
+        "summary": "Create Patient",
+        "operationId": "create_patient_v1_patients_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Patient"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List Patients",
+        "operationId": "list_patients_v1_patients_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientList"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/v1/patients/{patient_id}": {
+      "get": {
+        "summary": "Get Patient",
+        "operationId": "get_patient_v1_patients__patient_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Patient"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Patient",
+        "operationId": "update_patient_v1_patients__patient_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Patient"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Patient",
+        "operationId": "delete_patient_v1_patients__patient_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
     "/v1/screenings": {
       "post": {
         "summary": "Create Screening",
@@ -166,6 +535,22 @@
               "minimum": 1,
               "default": 20,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "patient_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Patient Id"
             }
           }
         ],
@@ -900,14 +1285,22 @@
           "MV",
           "AV",
           "PV",
-          "TV"
+          "TV",
+          "NK"
         ],
         "title": "Location"
       },
       "LocationResult": {
         "properties": {
           "location": {
-            "$ref": "#/components/schemas/Location"
+            "type": "string",
+            "enum": [
+              "MV",
+              "AV",
+              "PV",
+              "TV"
+            ],
+            "title": "Location"
           },
           "abnormal_probability": {
             "type": "number",
@@ -940,6 +1333,12 @@
       },
       "Patient": {
         "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Label"
+          },
           "age_years": {
             "type": "integer",
             "maximum": 110.0,
@@ -975,13 +1374,92 @@
             ],
             "title": "Weight Kg"
           },
-          "symptoms": {
+          "known_conditions": {
             "items": {
-              "$ref": "#/components/schemas/Symptom"
+              "$ref": "#/components/schemas/KnownCondition"
             },
             "type": "array",
-            "title": "Symptoms",
+            "title": "Known Conditions",
             "default": []
+          },
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
+          "last_screening_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Screening At"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "age_years",
+          "sex",
+          "patient_id",
+          "last_screening_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Patient"
+      },
+      "PatientCreate": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "age_years": {
+            "type": "integer",
+            "maximum": 110.0,
+            "minimum": 0.0,
+            "title": "Age Years"
+          },
+          "sex": {
+            "$ref": "#/components/schemas/Sex"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 250.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 300.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
           },
           "known_conditions": {
             "items": {
@@ -990,14 +1468,147 @@
             "type": "array",
             "title": "Known Conditions",
             "default": []
+          },
+          "consent": {
+            "$ref": "#/components/schemas/Consent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "age_years",
+          "sex",
+          "consent"
+        ],
+        "title": "PatientCreate"
+      },
+      "PatientList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Patient"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PatientList"
+      },
+      "PatientSnapshot": {
+        "properties": {
+          "age_years": {
+            "type": "integer",
+            "title": "Age Years"
+          },
+          "sex": {
+            "$ref": "#/components/schemas/Sex"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "symptoms": {
+            "items": {
+              "$ref": "#/components/schemas/Symptom"
+            },
+            "type": "array",
+            "title": "Symptoms"
+          },
+          "known_conditions": {
+            "items": {
+              "$ref": "#/components/schemas/KnownCondition"
+            },
+            "type": "array",
+            "title": "Known Conditions"
           }
         },
         "type": "object",
         "required": [
           "age_years",
-          "sex"
+          "sex",
+          "height_cm",
+          "weight_kg",
+          "symptoms",
+          "known_conditions"
         ],
-        "title": "Patient"
+        "title": "PatientSnapshot",
+        "description": "The patient's details when a screening was made. Never holds the label."
+      },
+      "PatientUpdate": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "age_years": {
+            "type": "integer",
+            "maximum": 110.0,
+            "minimum": 0.0,
+            "title": "Age Years"
+          },
+          "sex": {
+            "$ref": "#/components/schemas/Sex"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 250.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 300.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "known_conditions": {
+            "items": {
+              "$ref": "#/components/schemas/KnownCondition"
+            },
+            "type": "array",
+            "title": "Known Conditions"
+          }
+        },
+        "type": "object",
+        "title": "PatientUpdate"
       },
       "Platform": {
         "type": "string",
@@ -1167,15 +1778,24 @@
           "consent": {
             "$ref": "#/components/schemas/Consent"
           },
-          "patient": {
-            "$ref": "#/components/schemas/Patient"
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
+          "symptoms": {
+            "items": {
+              "$ref": "#/components/schemas/Symptom"
+            },
+            "type": "array",
+            "title": "Symptoms",
+            "default": []
           }
         },
         "type": "object",
         "required": [
           "language",
           "consent",
-          "patient"
+          "patient_id"
         ],
         "title": "ScreeningCreate"
       },
@@ -1184,6 +1804,10 @@
           "screening_id": {
             "type": "string",
             "title": "Screening Id"
+          },
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
           },
           "status": {
             "$ref": "#/components/schemas/ScreeningStatus"
@@ -1210,6 +1834,7 @@
         "type": "object",
         "required": [
           "screening_id",
+          "patient_id",
           "status",
           "required_locations",
           "optional_locations",
@@ -1223,6 +1848,10 @@
             "type": "string",
             "title": "Screening Id"
           },
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
           "status": {
             "$ref": "#/components/schemas/ScreeningStatus"
           },
@@ -1234,7 +1863,7 @@
             "title": "Created At"
           },
           "patient": {
-            "$ref": "#/components/schemas/Patient"
+            "$ref": "#/components/schemas/PatientSnapshot"
           },
           "recordings": {
             "items": {
@@ -1257,6 +1886,7 @@
         "type": "object",
         "required": [
           "screening_id",
+          "patient_id",
           "status",
           "language",
           "created_at",
@@ -1288,6 +1918,10 @@
             "type": "string",
             "title": "Screening Id"
           },
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -1309,6 +1943,7 @@
         "type": "object",
         "required": [
           "screening_id",
+          "patient_id",
           "created_at",
           "status",
           "label"

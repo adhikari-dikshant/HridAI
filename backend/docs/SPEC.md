@@ -5,11 +5,12 @@
 
 ## 1. Product summary [ctx §1, §3]
 
-- Phone records heart sounds (phone mic or ₹500 stethoscope + collar mic) → backend checks quality → AI classifies as **Normal / Needs check-up / Recording unclear** + confidence + heart rate → Gemini explains in **Hindi + English** → user can share with a doctor.
+- Phone records heart sounds from the chest, plus one recording from the neck beside the larynx (phone mic or ₹500 stethoscope + collar mic) → backend checks quality → AI classifies as **Normal / Needs check-up / Recording unclear** + confidence + heart rate → Gemini explains in **Hindi + English** → user can share with a doctor.
 - Users: ASHA workers, PHCs/rural clinics, families, telemedicine doctors.
 - Hackathon bonus for Google tech → Gemini, Firebase, Cloud Run, (optional) Vertex AI.
 - **Screening, not diagnosis**, everywhere.
-- MVP: consent + patient info, 2 locations (MV + AV) × 15 s, server quality check, classification, bpm, Gemini EN/HI, history, Cloud Run.
+- MVP: multiple patient profiles per account, consent + patient details, 2 chest locations (MV + AV) + 1 neck location (NK) × 15 s, server quality check, classification, bpm, Gemini EN/HI, per-patient history, Cloud Run.
+- Neck audio (`NK`) is collected and quality-checked but **never classified**: the model has no labelled neck data. It does not affect the label, confidence, bpm or threshold.
 - Stretch: 4 locations, Grad-CAM heatmap, report upload + summary, share PDF/link, waveform with S1/S2.
 
 ## 2. API contract [ctx §8]
@@ -17,7 +18,7 @@
 ### Conventions
 
 - All routes under `/v1` except `GET /healthz`.
-- Every `/v1` call: `Authorization: Bearer <Firebase ID token>`, verified with `firebase_admin.auth.verify_id_token`. Users only see their own screenings.
+- Every `/v1` call: `Authorization: Bearer <Firebase ID token>`, verified with `firebase_admin.auth.verify_id_token`. Users only see their own patients and screenings.
 - JSON `snake_case`, timestamps ISO 8601 UTC (`2026-11-02T10:15:00Z`), IDs strings (prefix + 10 characters; examples below are shortened).
 - Language `"en" | "hi"`. User-facing messages returned in both (`message_en`, `message_hi`).
 - `MOCK_INFERENCE=true` → fixed realistic results.
@@ -32,7 +33,7 @@
 |--------|------|-----------------|
 | 400 | Bad input (missing field, invalid location) | `invalid_request`, `consent_required` |
 | 401 | Missing / invalid Firebase token | `unauthorized` |
-| 404 | Screening not found **or not yours** | `screening_not_found` |
+| 404 | Patient or screening not found **or not yours** | `patient_not_found`, `screening_not_found` |
 | 409 | Wrong state | `no_accepted_recordings`, `analysis_in_progress` |
 | 413 | File too large | `file_too_large` |
 | 415 | Unsupported file type | `unsupported_media_type`, `unsupported_audio` |
@@ -46,40 +47,79 @@ A recording that **fails quality is not an error**: 200 with `"accepted": false`
 { "status": "ok", "model_version": "cardiophon-ft-0.1", "mock": false }
 ```
 
+### `POST /v1/patients` → 201
+
+The consent from the current flow is sent here too, so no data is stored before consent.
+
+```jsonc
+// request
+{
+  "consent": { "accepted": true, "version": "v1" },
+  "label": "Papa",                   // required, 1-40 chars, trimmed. Nickname or code, not a full name
+  "age_years": 34,                   // required, 0-110
+  "sex": "male",                     // required: male | female | other
+  "height_cm": 172,                  // optional
+  "weight_kg": 70,                   // optional
+  "known_conditions": []             // optional: hypertension | diabetes | known_heart_disease | other
+}
+// 201
+{
+  "patient_id": "pat_4d9q2m", "label": "Papa", "age_years": 34, "sex": "male",
+  "height_cm": 172, "weight_kg": 70, "known_conditions": [],
+  "last_screening_at": null,
+  "created_at": "2026-11-02T10:14:00Z", "updated_at": "2026-11-02T10:14:00Z"
+}
+```
+
+### `GET /v1/patients?limit=100` → 200
+
+`{ "items": [Patient] }`, newest or most recently screened first. `limit` is 1–200. No server search; the app filters on the device.
+
+### `GET /v1/patients/{patient_id}` → 200
+
+One `Patient`.
+
+### `PATCH /v1/patients/{patient_id}` → 200
+
+Send only the fields that changed. Returns the updated `Patient`. Only `height_cm` and `weight_kg` can be cleared with `null`. Past screenings keep their snapshot.
+
+### `DELETE /v1/patients/{patient_id}` → 204
+
+Deletes the profile and all its screenings, recordings and reports (Firestore + Storage).
+
 ### `POST /v1/screenings` → 201
+
+The backend copies the patient's current details into the screening as a snapshot. Symptoms belong to the screening, not the profile.
 
 ```jsonc
 // request
 {
   "language": "hi",
   "consent": { "accepted": true, "version": "v1" },
-  "patient": {
-    "age_years": 34,                 // required, 0-110
-    "sex": "male",                   // required: male | female | other
-    "height_cm": 172,                // optional
-    "weight_kg": 70,                 // optional
-    "symptoms": ["breathlessness"],  // optional: chest_pain | breathlessness | palpitations | fatigue | fainting | swelling
-    "known_conditions": []           // optional: hypertension | diabetes | known_heart_disease | other
-  }
+  "patient_id": "pat_4d9q2m",        // required; 404 patient_not_found if missing or not yours
+  "symptoms": ["breathlessness"]     // optional: chest_pain | breathlessness | palpitations | fatigue | fainting | swelling
 }
 // 201
 {
   "screening_id": "scr_8f2k1x",
+  "patient_id": "pat_4d9q2m",
   "status": "awaiting_recordings",
-  "required_locations": ["MV", "AV"],
+  "required_locations": ["MV", "AV", "NK"],
   "optional_locations": ["PV", "TV"],
   "created_at": "2026-11-02T10:15:00Z"
 }
 ```
 
+`required_locations` is what the app should ask for. The hard rule for analyze is 1 accepted chest recording, so a skipped neck step never blocks a result.
+
 ### `POST /v1/screenings/{screening_id}/recordings` → 200
 
-`multipart/form-data`. Re-uploading the same location **replaces** the previous recording for that location.
+`multipart/form-data`. Re-uploading the same location **replaces** the previous recording for that location. An `NK` upload never changes the screening status and never clears a completed result.
 
 | Field | Value |
 |-------|-------|
 | `file` | binary; `audio/m4a`, `audio/mp4`, `audio/x-m4a`, `audio/wav`; max 5 MB |
-| `location` | `MV` \| `AV` \| `PV` \| `TV` |
+| `location` | `MV` \| `AV` \| `PV` \| `TV` \| `NK` |
 | `source` | `phone_mic` \| `stethoscope_mic` |
 | `duration_ms` | e.g. `15000` |
 | `platform` | `ios` \| `android` |
@@ -104,12 +144,14 @@ A recording that **fails quality is not an error**: 200 with `"accepted": false`
 | Issue code | Meaning | Message (EN) |
 |------------|---------|--------------|
 | `too_short` | < 8 s after trimming | Recording was too short. Hold still for the full 15 seconds. |
-| `too_quiet` | Signal below floor | Heartbeat was too faint. Press the phone more firmly on bare skin. |
+| `too_quiet` | Signal below floor | Chest: Heartbeat was too faint. Press the phone more firmly on bare skin. Neck: Heartbeat was too faint. Move the phone a little, keeping a light touch. Do not press harder. |
 | `clipping` | Signal saturated | Sound was distorted. Hold the phone steady without rubbing. |
 | `too_noisy` | Too much energy outside heart band | Too much background noise. Turn off the fan and record again. |
-| `no_heartbeat_detected` | No periodic beat | We couldn't hear a heartbeat. Check the position on the chest guide. |
+| `no_heartbeat_detected` | No periodic beat | Chest: We couldn't hear a heartbeat. Check the position on the chest guide. Neck: We couldn't hear a heartbeat. Check the position on the neck guide. |
 | `heart_rate_out_of_range` | Rate outside 40–180 bpm | Reading was unclear. Please record again. |
 
+> Messages depend on `location`. The backend must never tell a user to press harder on the neck, in either language.
+>
 > Hindi messages for issues other than `too_noisy` are **not yet written** in the context doc — draft them in `app/core/messages.py` and get a native speaker to review.
 
 ### `POST /v1/screenings/{screening_id}/reports` (stretch) → 200
@@ -122,7 +164,7 @@ Multipart `file`: `image/jpeg` | `image/png` | `application/pdf`, max 10 MB. Upl
 
 ### `POST /v1/screenings/{screening_id}/analyze` → 200
 
-No body. Runs model + Gemini. Needs ≥ 1 accepted recording, else 409 `no_accepted_recordings`. App timeout 45 s.
+No body. Runs model + Gemini. Needs ≥ 1 accepted chest recording, else 409 `no_accepted_recordings`. App timeout 45 s. `per_location` and `heart_rate_bpm` cover chest spots only, so `NK` never appears here.
 
 ```jsonc
 {
@@ -151,11 +193,14 @@ No body. Runs model + Gemini. Needs ≥ 1 accepted recording, else 409 `no_accep
 ```
 
 ### `GET /v1/screenings/{screening_id}` → 200
-Full screening: patient, recordings (no audio bytes), status, and the analyze response if completed.
+Full screening: `patient_id`, patient snapshot, recordings including `NK` (no audio bytes), status, and the analyze response if completed.
 
-### `GET /v1/screenings?limit=20` → 200
+### `GET /v1/screenings?patient_id=pat_4d9q2m&limit=20` → 200
+
+`patient_id` is optional; without it the list covers all of the user's patients. An unknown patient returns 404 `patient_not_found`.
+
 ```json
-{ "items": [ { "screening_id": "scr_8f2k1x", "created_at": "...", "status": "completed", "label": "needs_checkup" } ] }
+{ "items": [ { "screening_id": "scr_8f2k1x", "patient_id": "pat_4d9q2m", "created_at": "...", "status": "completed", "label": "needs_checkup" } ] }
 ```
 
 ### `DELETE /v1/screenings/{screening_id}` → 204
@@ -163,16 +208,22 @@ Deletes screening, recordings and reports (Firestore + Storage).
 
 ### Status machine
 
-`awaiting_recordings` → `ready` (≥ 1 accepted) → `analyzing` → `completed` | `failed`
+`awaiting_recordings` → `ready` (≥ 1 accepted chest recording) → `analyzing` → `completed` | `failed`
 
 ### Shared TypeScript types (the app copies these; Pydantic must match)
 
 ```ts
 export type Lang = "en" | "hi";
-export type Location = "MV" | "AV" | "PV" | "TV";
+export type ChestLocation = "MV" | "AV" | "PV" | "TV";
+export type Location = ChestLocation | "NK";
 export type Label = "normal" | "needs_checkup" | "unclear";
 export type QualityIssue = "too_short" | "too_quiet" | "clipping" | "too_noisy"
   | "no_heartbeat_detected" | "heart_rate_out_of_range";
+export interface Patient {
+  patient_id: string; label: string; age_years: number; sex: "male" | "female" | "other";
+  height_cm: number | null; weight_kg: number | null; known_conditions: string[];
+  last_screening_at: string | null; created_at: string; updated_at: string;
+}
 export interface Quality { score: number; duration_s: number; heart_rate_bpm: number | null; issues: QualityIssue[]; }
 export interface RecordingResponse {
   recording_id: string; location: Location; accepted: boolean; quality: Quality;
@@ -182,7 +233,7 @@ export interface AnalyzeResponse {
   screening_id: string; status: "completed" | "failed";
   result: {
     label: Label; confidence: number; abnormal_probability: number; heart_rate_bpm: number | null;
-    per_location: { location: Location; abnormal_probability: number; quality_score: number; heatmap_url: string | null }[];
+    per_location: { location: ChestLocation; abnormal_probability: number; quality_score: number; heatmap_url: string | null }[];
     used_patient_data: boolean; model_version: string;
   };
   explanation: Record<Lang, string>;
@@ -199,11 +250,18 @@ Note: `message_en`/`message_hi` are **omitted** (not `null`) on accepted recordi
 ### Firestore
 
 ```text
+patients/{patient_id}
+  owner_uid, label, age_years, sex, height_cm, weight_kg, known_conditions[]
+  consent { accepted, version, accepted_at }
+  last_screening_at                              // latest completed screening, or null
+  last_activity_at                               // sort key, set on create and new screening; never returned
+  created_at, updated_at
+
 screenings/{screening_id}
-  owner_uid, created_at, updated_at, status, language
+  owner_uid, patient_id, created_at, updated_at, status, language
   analysis_started_at                            // internal lock, expires after 90 s; never returned by the API
   consent { accepted, version, accepted_at }
-  patient { age_years, sex, height_cm, weight_kg, symptoms[], known_conditions[] }
+  patient { age_years, sex, height_cm, weight_kg, symptoms[], known_conditions[] }   // snapshot, no label
   result  { ...same as analyze "result" }        // after analyze
   explanation { en, hi }
   model_version
@@ -216,11 +274,13 @@ screenings/{screening_id}/reports/{report_id}
   storage_path, mime_type, summary_en, summary_hi, created_at
 ```
 
+Composite indexes needed: `patients` on `owner_uid` + `last_activity_at`; `screenings` on `owner_uid` + `patient_id` + `created_at`.
+
 ### Cloud Storage
 
 ```text
 gs://<bucket>/screenings/{screening_id}/recordings/{recording_id}.m4a   // original
-gs://<bucket>/screenings/{screening_id}/recordings/{recording_id}.wav   // converted, 2 kHz mono
+gs://<bucket>/screenings/{screening_id}/recordings/{recording_id}.wav   // converted, 4 kHz mono
 gs://<bucket>/screenings/{screening_id}/reports/{report_id}.{jpg|png|pdf}
 gs://<bucket>/screenings/{screening_id}/heatmaps/{location}.png         // stretch
 gs://<project>-ml/models/{model_version}/                               // separate bucket; runtime has no access
@@ -230,7 +290,8 @@ gs://<project>-ml/models/{model_version}/                               // separ
 - Data bucket: soft delete off, so `DELETE` really deletes audio; 30-day lifecycle rule on `screenings/` as a backstop.
 - Rejected recordings: metadata only, audio deleted after the quality check.
 - Heatmaps via short-lived signed URLs.
-- **No names, phone numbers, addresses or exact DOB.**
+- Profiles stay until the user deletes them. The 30-day rule applies to audio, not to profiles.
+- **No phone numbers, addresses or exact DOB, and full names are not asked for.** The only free-text identifier is the patient `label`, a nickname or code. A user can still type a real name, so treat `label` as personal data: it stays out of logs, Gemini prompts, screening snapshots and share text.
 
 ## 4. Audio pipeline [ctx §10, §11]
 
@@ -240,13 +301,14 @@ One module `app/services/audio.py`, constants in one config object, identical in
 |------|------|----------------|
 | 1. Decode | ffmpeg → mono float32 PCM, from a temp file (not stdin), hardened | `ffmpeg -protocol_whitelist file -t 35 -i in.m4a -ac 1 -f f32le pipe:1`; empty output = `unsupported_audio` |
 | 2. Trim | drop first/last 1 s | 1.0 s each side |
-| 3. Resample | single rate | `TARGET_SR = 2000` (PhysioNet 2016 = 2 kHz, CirCor = 4 kHz; use pretrained model's rate if different) |
-| 4. Bandpass | Butterworth, zero-phase (`butter` + `sosfiltfilt`) | order 4, 25–400 Hz |
+| 3. Resample | single rate | `sample_rate = 4000`, CardioPHON's rate (`config_4k.yaml`) |
+| 4. Bandpass | Butterworth, zero-phase, **for quality checks only** | order 4, 25–400 Hz. The model gets unfiltered audio |
 | 5. Spike removal | Schmidt et al. | optional |
 | 6. Quality check | below, before normalizing so level checks see the real signal | reject → `accepted: false` |
 | 7. Normalize | peak normalize | divide by max abs |
-| 8. Segment | fixed windows | 5 s, 2.5 s hop, drop last partial |
-| 9. Features | log-mel per window | `n_fft=256`, `hop_length=40` (20 ms), `n_mels=64`, `fmin=20`, `fmax=400` (provisional until the model trial; 800 left 33 of 64 bands empty after the 400 Hz filter); `log(1e-6 + S)`; per-window standardization |
+| 8. Features | log-mel of the whole recording, no windows | `n_fft=512`, `hop_length=160` (40 ms), `n_mels=64`, `fmin=60`, `fmax=2000`; `log(S + 1.19e-7)`; `(x + 4.1357055) / 2.863227` |
+
+All values live in `app/core/audio_config.py`. `app/services/features.py` matches nnAudio, the library CardioPHON trained with, and a golden test guards this.
 
 Audio past 35 s is not decoded. This enforces ctx §7's 30 s maximum without a new error code.
 
@@ -260,11 +322,13 @@ Audio past 35 s is not decoded. This enforces ctx §7's 30 s maximum without a n
 - CardioPHON's quality model is a separate classical classifier built at 1 kHz. Add it to `quality.score` only if the model trial shows it's usable.
 - Tune on: dataset good recordings, dataset unclear recordings, ~20 consented team phone recordings (quiet / fan / talking).
 
+Neck recordings (`NK`): steps 1–6 run as normal, then processing stops; steps 7–8 and the model are skipped. Quality thresholds are stored per location type, because the neck adds breath sounds, swallowing and voice. Tune neck thresholds on ~20 consented team recordings (at rest, breathing heavily, swallowing, talking). No dataset covers this, so keep them loose until then and log the outcome counts.
+
 ### 4.2 Model and aggregation
 
-- Main: fine-tuned CardioPHON (arXiv 2511.04533), subject to the model trial (`PLAN.md` §3); fallback: small CNN / general pretrained audio CNN. Export **ONNX** `model.onnx`, CPU inference with ONNX Runtime (PyTorch has deprecated TorchScript). Version string like `cardiophon-ft-0.1`.
-- Window → recording: **mean** of window probabilities.
-- Recording → screening: **max** over locations.
+- Main: frozen CardioPHON encoder (arXiv 2511.04533) plus a small classifier we train, in `ml/notebooks/train_cardiophon_head.ipynb`. The checkpoint holds only the encoder, so the classifier must be trained. Fallback: small CNN. Export **ONNX** `model.onnx`, CPU inference with ONNX Runtime (PyTorch has deprecated TorchScript). Version string like `cardiophon-ft-0.1`.
+- Recording → site: **mean** when a site has several recordings. The backend keeps one per site.
+- Site → screening: **max** over chest locations. `NK` is excluded.
 - Late fusion: **off for MVP**, so `used_patient_data=false`. CirCor covers ages 0–21, so adult inputs are extrapolation, and missing flags can act as a dataset identifier. Add it only if it beats audio-only on held-out data with missing flags removed. If used: logistic regression / small MLP on `[audio_probability, age_years, sex, height_cm, weight_kg, bmi]`; missing → training medians.
 - Threshold `T` chosen on validation for **sensitivity ≥ 0.85** on the final screening-level score, using MV + AV only (max depends on how many locations are used), and checked for the 1-recording case. Stored as `threshold` in `model_meta.json`, e.g. 0.35.
 
@@ -276,12 +340,13 @@ PhysioNet/CinC 2016 (normal vs abnormal, 2 kHz) and CirCor DigiScope 2022 (pedia
 - CirCor's Murmur label is per patient. Label recordings per site using the `Murmur locations` field.
 - Augment with a phone channel (high-pass, AAC round trip), because training data is stethoscope audio.
 
-### 4.4 Model artifact contract (backend proposal, confirm with the model trial)
+### 4.4 Model artifact contract
 
-Files are baked into the image. The input shape below is provisional: the CardioPHON paper describes 96×64 inputs.
+Files are baked into the image. The notebook produces them in `hridai_model.zip`.
 
-- `models/model.onnx` — input `float32 [N, 1, 64, T]` log-mel windows (T = 5 s / 20 ms = 251 frames); output `[N]` (or `[N,1]`) abnormal logit.
-- `models/model_meta.json` — `{ "model_version", "output": "logit"|"probability", "threshold", "target_sr", "n_mels", "frames", "fmin", "fmax" }`; backend validates against `audio_config.py` at startup and refuses to start on a mismatch. This is the only source for the version and threshold.
+- `models/model.onnx` — input `log_mel`, `float32 [N, 1, 64, T]` with any `T` (40 ms per frame); output `logit`, `[N]` abnormal logit. Tested on the real encoder at 100–751 frames.
+- `models/model_meta.json` — `{ "model_version", "output": "logit", "threshold", "sample_rate", "n_mels", "n_fft", "hop_length", "f_min", "f_max", "results" }`; backend validates against `audio_config.py` at startup and refuses to start on a mismatch. This is the only source for the version and threshold.
+- `models/golden.npz` — preprocessed audio and its expected logit, for the backend's golden test.
 - `models/fusion.json` (optional) — `{ "features": [...], "coef": [...], "intercept": x, "medians": {...} }`.
 
 ## 5. Gemini [ctx §12]
@@ -290,7 +355,7 @@ Files are baked into the image. The input shape below is provisional: the Cardio
 - Called through **Vertex AI** in `asia-south1` with the service account, no API key. Vertex doesn't train on this data without permission; the free Gemini API tier may, and it can be read by human reviewers.
 - Flash-class model, exact ID pinned in `GEMINI_MODEL` (`gemini-3.5-flash`: stable, listed for `asia-south1`, shutdown no earlier than 2027-05-19). Temperature 0.2, JSON output, 15 s timeout.
 - Fallback to fixed template text per label on any failure. Result never depends on Gemini.
-- Send only: age, sex, symptoms, label, probabilities, bpm, locations, report summary. No identifiers.
+- Send only: age, sex, symptoms, result label, probabilities, bpm, chest locations, report summary. No identifiers, including the patient `label` and `patient_id`.
 - Output filter bans phrases such as "you have" and "diagnosed with". It must allow "not a diagnosis".
 - Report photos can show names and phone numbers, so report upload needs a privacy decision before it's built (`PLAN.md` B9).
 
@@ -328,7 +393,7 @@ If the image is not a medical report, return report_type "other" and say so.
 
 | Label | Rule | Headline EN / HI |
 |-------|------|------------------|
-| `unclear` | No accepted recording reached analyze, or all accepted have quality score < 0.5 | Recording unclear · रिकॉर्डिंग साफ़ नहीं है |
+| `unclear` | No accepted chest recording reached analyze, or all accepted chest recordings have quality score < 0.5 | Recording unclear · रिकॉर्डिंग साफ़ नहीं है |
 | `needs_checkup` | `abnormal_probability ≥ T` | Please get a check-up · कृपया डॉक्टर से जाँच कराएँ |
 | `normal` | `abnormal_probability < T` | No unusual sound found · कोई असामान्य आवाज़ नहीं मिली |
 
@@ -366,9 +431,9 @@ Full steps and commands are in `DEPLOY.md`.
 - `python:3.11-slim-bookworm` + ffmpeg + ONNX Runtime; load model once at startup.
 - Dedicated service account with least privilege; no Gemini key, because Vertex AI uses that account.
 - One inference thread each, at most 2 inferences at once.
-- Logs: request id, screening id, durations, model version. **Never patient data or audio.**
+- Logs: request id, screening id, durations, model version. **Never patient data, profile labels or audio.**
 
 ## 9. Privacy [ctx §16]
 
-Consent before any data (store version + timestamp) · minimum data · delete endpoint removes all audio and reports · spirit of India's DPDP Act 2023 · delete hackathon data after the event · team test recordings only with consent and never used to claim accuracy · audio retained at most 30 days · rejected audio not kept · legal review before real users, covering minors' consent and Google's Generative AI health restrictions.
+Consent before any data (store version + timestamp) · consent is per screening, given by the person screened or their guardian · minimum data · delete endpoints remove all audio and reports, for one screening or a whole patient · neck recording is light touch only, skippable, with a stop-if-dizzy warning, and needs a doctor's review before real users · spirit of India's DPDP Act 2023 · delete hackathon data after the event · team test recordings only with consent and never used to claim accuracy · audio retained at most 30 days · rejected audio not kept · legal review before real users, covering minors' consent and Google's Generative AI health restrictions.
 

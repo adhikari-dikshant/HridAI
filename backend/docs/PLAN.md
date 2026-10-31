@@ -135,11 +135,12 @@ flowchart LR
 
 This decides the audio constants, so it must finish before B4 and B5 freeze them.
 
-- [ ] Get CardioPHON from its repository; confirm weights exist and the code and weights licences allow this use
-- [ ] Confirm its sample rate, window length and input shape (the paper describes BYOL-A with 96×64 log-mel inputs, which differs from SPEC §4.4)
-- [ ] Confirm whether its quality model is usable (the paper describes a separate classical classifier built at 1 kHz)
-- [ ] If any of this stalls after one day, use the small CNN fallback
-- [ ] Record the outcome in `HANDOFF.md`, and update `SPEC.md` §4 and §4.4
+- [x] Get CardioPHON; confirm weights exist (encoder only, 24.2 MB)
+- [x] Confirm sample rate and input shape (4 kHz, `[N, 1, 64, T]`, any length); ONNX export tested
+- [x] Write the training notebook: `ml/notebooks/train_cardiophon_head.ipynb` (tested end to end on 120 patients)
+- [ ] Run the notebook on all patients in Colab, and put the zip's files in `backend/models/`
+- [x] Update `SPEC.md` §4 and §4.4, and record the outcome in `HANDOFF.md`
+- [ ] Licence: user chose a 2-day private demo and will email the authors later; ask before any wider use
 
 ### B0 — Scaffold and tooling (≈ 0.5 day)
 
@@ -168,6 +169,8 @@ This decides the audio constants, so it must finish before B4 and B5 freeze them
 - [x] `POST /v1/screenings/{id}/analyze` with `MockClassifier` + `TemplateExplainer`; 409 `no_accepted_recordings`
 - [x] `GET /v1/screenings/{id}`, `GET /v1/screenings?limit=20` (newest first, owner only), `DELETE /v1/screenings/{id}` (204, deletes blobs)
 - [x] Ownership: other user's screening → 404 `screening_not_found` (never 403, never leak existence)
+- [x] Patient profiles: `/v1/patients` create, list, read, patch and delete (delete cascades to screenings and audio); `POST /v1/screenings` takes `patient_id` and stores a snapshot without the label; `GET /v1/screenings?patient_id=`
+- [x] `NK` neck location: upload and mock quality work, excluded from status, analyze and the result; neck messages never say to press harder
 - [x] `MOCK_SCENARIO=normal|needs_checkup|unclear|cycle` env var to let the app team test every result screen
 - [x] CORS enabled for local Expo web dev (configurable origins)
 - [x] API tests for every endpoint, every error code, and the full happy path
@@ -192,7 +195,7 @@ Follow `DEPLOY.md`.
 - [ ] Firebase Admin init with Application Default Credentials everywhere (`gcloud auth application-default login` locally; no `sa.json`)
 - [ ] `verify_id_token` (accept anonymous users; `check_revoked=False` for speed); `AUTH_MODE=dev` refused when `ENV=prod`
 - [ ] Analysis lock: set `analyzing` in a Firestore transaction with `analysis_started_at`; treat it as expired after 90 s so a crash or timeout can't block retries; a live lock → 409 `analysis_in_progress`
-- [ ] `FirestoreRepository` matching SPEC §3 collections (`screenings`, sub-collections `recordings`, `reports`); list query by `owner_uid` + `created_at desc` (create composite index; commit `firestore.indexes.json`)
+- [ ] `FirestoreRepository` matching SPEC §3 collections (`patients`, `screenings`, sub-collections `recordings`, `reports`); list queries by `owner_uid` + `created_at desc`, `owner_uid` + `patient_id` + `created_at desc` and `owner_uid` + `last_activity_at desc` (create composite indexes; commit `firestore.indexes.json`)
 - [ ] `GCSBlobStore`: upload original + converted WAV, delete prefix, signed URL (15 min) for heatmaps (B9 only; add the token-creator role then)
 - [ ] Deny all client access: commit `firestore.rules`; the bucket uses uniform access + public access prevention, so IAM controls it
 - [ ] Delete cascades: Firestore sub-collections + `screenings/{id}/` storage prefix (soft delete must be off, or audio stays recoverable for 7 days)
@@ -205,24 +208,26 @@ Follow `DEPLOY.md`.
 - [ ] `app/core/audio_config.py`: every constant from SPEC §4 in one frozen dataclass
 - [ ] `audio.decode()` via ffmpeg subprocess: write the upload to a temp file (not stdin; a default-muxed m4a returned exit code 0 and 0 bytes over stdin) and delete it afterwards, output `-ac 1 -ar <native> -f f32le pipe:1`
 - [ ] Harden ffmpeg: `-protocol_whitelist file`, allow only m4a/mp4/wav input formats, `-t 35`, subprocess timeout; raise `unsupported_audio` (415) on decode failure **or empty output**
-- [ ] `trim` (1 s each side), `resample` (`scipy.signal.resample_poly`) to the rate in `audio_config.py`, `bandpass` (Butterworth order 4, 25–400 Hz, `sosfiltfilt`), `peak_normalize`, `segment` (5 s / 2.5 s hop)
+- [x] `preprocess` (resample, trim 1 s each side, peak normalize) in `app/services/audio.py`, shared with training
+- [ ] `bandpass` (Butterworth order 4, 25–400 Hz, `sosfiltfilt`) for quality checks only; the model gets unfiltered audio
 - [ ] Optional spike removal (Schmidt) behind a flag, default off
 - [ ] `quality.py` runs **before** `peak_normalize`, in order: `too_short`, `clipping` (on decoded audio), `too_quiet` (filtered RMS), `too_noisy` (SPEC §4.1: energy at S1/S2 vs between beats, mains hum at 50/100/150 Hz, spectral flatness), heartbeat envelope + autocorrelation searched over 30–220 bpm → `no_heartbeat_detected`, then range check 40–180 → `heart_rate_out_of_range`; score 0–1 combining the sub-metrics
-- [ ] Store converted 2 kHz WAV next to original in BlobStore
+- [ ] Store converted 4 kHz WAV next to original in BlobStore
 - [ ] `scripts/make_test_audio.py`: synthetic lub-dub at 60/78/120 bpm, white noise, silence, clipped, 5 s short, 50 Hz hum
 - [ ] Unit tests per check with synthetic audio; bpm within ±5 of truth
 - [ ] Replace `MockQuality` with real quality **even in mock inference mode** (flag `MOCK_QUALITY=false` default once done)
 - [ ] Threshold tuning notebook/script: run quality on PhysioNet good vs CirCor "unknown" + ~20 consented team phone recordings (quiet, fan, talking); write chosen thresholds to `audio_config.py` and results to `docs/HANDOFF.md`
 - [ ] Check bpm on real recordings too: synthetic tests passed, but a strong S2 could cause rate doubling
+- [ ] Separate neck (`NK`) quality thresholds, tuned on ~20 consented team recordings (at rest, breathing heavily, swallowing, talking); stay loose until then and log outcome counts
 
 **Accept:** real phone m4a uploads are accepted in a quiet room and rejected with `too_noisy` with a fan on; all quality tests pass.
 
 ### B5 — Real inference (≈ 1 day, after a model exists from B7/ml)
 
-- [ ] `features.py`: log-mel in numpy/scipy, no librosa at runtime (`n_fft=256`, `hop_length=40`, `n_mels=64`, `fmin=20`, `fmax=400`, provisional until the model trial), `log(1e-6 + S)`, per-window standardization
-- [ ] `OnnxClassifier`: load once at startup from `MODEL_PATH` (file baked into the image), `intra_op_num_threads=1`, batch all windows of a recording; a semaphore of 2 around inference
+- [x] `features.py`: log-mel in numpy/scipy, no librosa at runtime, values from `audio_config.py`, matched to nnAudio by a golden test
+- [ ] `OnnxClassifier`: load once at startup from `MODEL_PATH` (file baked into the image), `intra_op_num_threads=1`, one recording at a time; a semaphore of 2 around inference
 - [ ] Validate `model_meta.json` against `audio_config.py` at startup and refuse to start on a mismatch
-- [ ] Aggregation: window → recording = mean; recording → screening = max over locations
+- [ ] Aggregation: recording → screening = max over locations
 - [ ] `fusion.py`: **off for MVP** (`used_patient_data=false`). If `FUSION_PATH` is set, load the JSON (logistic regression coefficients, medians, feature order). Ship it only if it beats audio-only on held-out data with the missing flags removed
 - [ ] `result.py`: unclear rule (no accepted recordings / all quality < 0.5), threshold from `model_meta.json`, confidence rule, `confidence_band` helper
 - [ ] Run analyze synchronously in a plain `def` route; take the lock from B3, then `completed`/`failed`; on failure store `failed` and return 500 with request id

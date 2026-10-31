@@ -18,6 +18,10 @@ httptools==0.9.0
     # via uvicorn
 idna==3.20
     # via anyio
+numpy==2.4.6
+    # via
+    #   hridai-backend
+    #   scipy
 opentelemetry-api==1.45.2
     # via fastapi
 pydantic==2.14.2
@@ -36,6 +40,8 @@ python-multipart==0.0.32
     # via hridai-backend
 pyyaml==6.0.3
     # via uvicorn
+scipy==1.17.1
+    # via hridai-backend
 starlette==1.10.0
     # via fastapi
 typing-extensions==4.16.0

@@ -59,8 +59,9 @@ def list_screenings(
     uid: CurrentUid,
     service: Service,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    patient_id: str | None = None,
 ):
-    return service.list(uid, limit)
+    return service.list(uid, limit, patient_id)
 
 
 @router.get("/{screening_id}", response_model=ScreeningDetail)

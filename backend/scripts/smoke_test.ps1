@@ -33,10 +33,19 @@ try {
     $health = Invoke-RestMethod "$BaseUrl/healthz"
     Assert-Equal $health.status "ok" "health"
 
+    $consent = @{ accepted = $true; version = "v1" }
+    $body = @{ consent = $consent; label = "Smoke"; age_years = 34; sex = "male" } |
+        ConvertTo-Json -Depth 4
+    $patient = Invoke-RestMethod -Method Post -Uri "$BaseUrl/v1/patients" -Headers $headers `
+        -ContentType "application/json" -Body $body
+    $patientId = $patient.patient_id
+    Assert-Equal $patient.label "Smoke" "create patient"
+
     $body = @{
-        language = "hi"
-        consent  = @{ accepted = $true; version = "v1" }
-        patient  = @{ age_years = 34; sex = "male"; symptoms = @("breathlessness") }
+        language   = "hi"
+        consent    = $consent
+        patient_id = $patientId
+        symptoms   = @("breathlessness")
     } | ConvertTo-Json -Depth 4
     $created = Invoke-RestMethod -Method Post -Uri "$BaseUrl/v1/screenings" -Headers $headers `
         -ContentType "application/json" -Body $body
@@ -46,18 +55,25 @@ try {
     Assert-Equal (Send-Recording $id "MV" 5000).accepted $false "short recording rejected"
     Assert-Equal (Send-Recording $id "MV" 15000).accepted $true "MV accepted"
     Assert-Equal (Send-Recording $id "AV" 15000).screening_status "ready" "AV accepted"
+    Assert-Equal (Send-Recording $id "NK" 15000).accepted $true "NK accepted"
 
     $analysis = Invoke-RestMethod -Method Post -Uri "$BaseUrl/v1/screenings/$id/analyze" -Headers $headers
     Assert-Equal $analysis.status "completed" "analyze"
+    Assert-Equal $analysis.result.per_location.Count 2 "neck left out of result"
     Write-Host "    label=$($analysis.result.label) confidence=$($analysis.result.confidence)"
 
-    $list = Invoke-RestMethod -Uri "$BaseUrl/v1/screenings" -Headers $headers
+    $list = Invoke-RestMethod -Uri "$BaseUrl/v1/screenings?patient_id=$patientId" -Headers $headers
     Assert-Equal ($list.items.screening_id -contains $id) $true "history lists screening"
 
     Invoke-RestMethod -Method Delete -Uri "$BaseUrl/v1/screenings/$id" -Headers $headers | Out-Null
     $status = (Invoke-WebRequest -Uri "$BaseUrl/v1/screenings/$id" -Headers $headers `
         -SkipHttpErrorCheck).StatusCode
     Assert-Equal $status 404 "deleted screening is gone"
+
+    Invoke-RestMethod -Method Delete -Uri "$BaseUrl/v1/patients/$patientId" -Headers $headers | Out-Null
+    $status = (Invoke-WebRequest -Uri "$BaseUrl/v1/patients/$patientId" -Headers $headers `
+        -SkipHttpErrorCheck).StatusCode
+    Assert-Equal $status 404 "deleted patient is gone"
 
     Write-Host "Smoke test passed"
 }
