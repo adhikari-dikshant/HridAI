@@ -66,7 +66,7 @@ const en = {
   'consent.choice': 'Always your choice',
   'consent.choiceBody': 'Delete your screenings and audio anytime.',
   'consent.agree':
-    'I understand this is a screening, not a diagnosis. I agree to use my recordings, details and any reports for this check.',
+    'I understand this is a screening, not a diagnosis. I agree to use my recordings and details for this check.',
   'consent.someoneElse': 'Checking someone else? They or their guardian must agree before you tick this.',
   'consent.continue': 'Agree and continue',
   'consent.policy': 'Read full data policy',
@@ -369,7 +369,7 @@ const hi: Record<StringKey, string> = {
   'consent.choice': 'फ़ैसला हमेशा आपका',
   'consent.choiceBody': 'अपनी जाँचें और रिकॉर्डिंग कभी भी मिटाएँ।',
   'consent.agree':
-    'मैं समझता/समझती हूँ कि यह स्क्रीनिंग है, निदान नहीं। मैं इस जाँच के लिए अपनी रिकॉर्डिंग, जानकारी और रिपोर्ट के इस्तेमाल से सहमत हूँ।',
+    'मैं समझता/समझती हूँ कि यह स्क्रीनिंग है, निदान नहीं। मैं इस जाँच के लिए अपनी रिकॉर्डिंग और जानकारी के इस्तेमाल से सहमत हूँ।',
   'consent.someoneElse': 'किसी और की जाँच कर रहे हैं? टिक करने से पहले उनकी या उनके अभिभावक की सहमति ज़रूरी है।',
   'consent.continue': 'सहमत हूँ, आगे बढ़ें',
   'consent.policy': 'पूरी डेटा नीति पढ़ें',

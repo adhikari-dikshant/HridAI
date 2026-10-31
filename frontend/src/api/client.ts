@@ -30,8 +30,8 @@ const ANALYZE_TIMEOUT_MS = 45_000;
 export const isMockApi = !BASE_URL;
 /** The mock and dev login don't use the phone login. */
 export const requiresLogin = !isMockApi && !DEV_UID;
-/** The backend has no report upload yet, so only the mock shows that step. */
-export const reportsEnabled = isMockApi;
+/** Off until the backend has report upload. Turning it on brings the step back. */
+export const reportsEnabled = false;
 
 export class ApiError extends Error {
   constructor(

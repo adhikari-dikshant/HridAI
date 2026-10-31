@@ -20,7 +20,7 @@
 
 ## Next task
 
-1. Tell the app developer that `frontend/` has moved to the current contract and confirm field names against SPEC §2 (last B1 item). `POST /v1/screenings/{id}/reports` is called by the app but not built on the backend, so report upload fails against a real server until B9 (stretch) adds it. The step can be skipped.
+1. Tell the app developer that `frontend/` has moved to the current contract and confirm field names against SPEC §2 (last B1 item). `POST /v1/screenings/{id}/reports` isn't built on the backend, so the app's reports screen is switched off with `reportsEnabled` in `frontend/src/api/client.ts` until B9 (stretch) adds it.
 2. **B2 — deploy the mock**: needs the user to install `gcloud`, create the Google Cloud project and enable billing (`DEPLOY.md` steps 1–6). Write the Dockerfile from `DEPLOY.md` step 6 and build it with Docker running.
 3. **Test phone recordings** through the real pipeline and tune `CHEST_LIMITS` in `quality.py`. Tell the app developer that `confidence` now means distance from the threshold (`REVIEW.md` finding 14, applied). `demo/` has two CirCor samples for the demo. After changing `audio_config.py`, `audio.py` or `features.py`, run `python ml/build_notebook.py`; a test fails otherwise.
 4. CardioPHON licence: the user chose to use it for a 2-day private demo and email the authors later. No licence was found, and BYOL-A's licence is evaluation-only, so ask before any wider use.
@@ -99,7 +99,7 @@ No application code was written; the user asked for a plan only.
 
 ### 2026-11-01 — Session 8 — phone login and recording flow
 - Added Firebase phone login (`@react-native-firebase`), because the Firebase JS SDK flow needs a web reCAPTCHA. Phone numbers stay in Firebase Auth, never in Firestore, logs or Gemini; consent text, the HTML and SPEC now say so. No backend code or API change.
-- Added a 404 screen, session-lost screen, backend error messages, local playback, a move-on path after 2 failed tries, a 3-second room noise check (`NOISY_ROOM_DB` is a guess and only warns), vibration and voice cues, a pre-recording urgent warning and saved language. Reports stay hidden until the backend has that endpoint. Local recordings are deleted after analyze, on a new screening, on leaving and at app start.
+- Added a 404 screen, session-lost screen, backend error messages, local playback, a move-on path after 2 failed tries, a 3-second room noise check (`NOISY_ROOM_DB` is a guess and only warns), vibration and voice cues, a pre-recording urgent warning and saved language. The reports screen stays hidden, in mock mode too, until the backend has that endpoint. Local recordings are deleted after analyze, on a new screening, on leaving and at app start.
 - Fixed a blocker: `microphonePermission: false` under `expo-image-picker` removed `RECORD_AUDIO` from the whole Android app.
 - Checked in a browser with a temporary fake recorder and a web login stand-in. A throwaway prebuild confirmed the Android config. Not tested: real SMS or Firebase login, a Gradle build, real mic, audible playback, vibration, spoken cues or the real noise level, because this PC has no Android SDK.
 
