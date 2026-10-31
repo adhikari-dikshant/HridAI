@@ -20,7 +20,7 @@ logger = logging.getLogger("app.main")
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     setup_logging()
-    if shutil.which("ffmpeg") is None:
+    if shutil.which(app.state.settings.ffmpeg_path) is None:
         logger.warning("ffmpeg_not_found")
     app.state.service = build_service(app.state.settings)
     app.state.patients = PatientService(app.state.service)

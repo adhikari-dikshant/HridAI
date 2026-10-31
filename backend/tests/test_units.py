@@ -89,7 +89,22 @@ def test_label_is_normal_below_threshold():
     result = build_result([score(probability=0.34)], [78], 0.35, "m")
 
     assert result["label"] == "normal"
-    assert result["confidence"] == 0.66
+    assert result["confidence"] == 0.51
+
+
+def test_confidence_is_lowest_at_the_threshold():
+    just_above = build_result([score(probability=0.021)], [78], 0.02, "m")
+    just_below = build_result([score(probability=0.019)], [78], 0.02, "m")
+
+    assert just_above["confidence"] == pytest.approx(0.5, abs=0.01)
+    assert just_below["confidence"] == pytest.approx(0.525, abs=0.01)
+
+
+def test_confidence_rises_with_distance_from_a_low_threshold():
+    high = build_result([score(probability=0.95)], [78], 0.02, "m")
+
+    assert high["label"] == "needs_checkup"
+    assert high["confidence"] == pytest.approx(0.97, abs=0.01)
 
 
 def test_screening_probability_is_max_over_locations():

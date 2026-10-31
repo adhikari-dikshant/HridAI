@@ -6,6 +6,8 @@ from typing import Protocol
 class BlobStore(Protocol):
     def put(self, path: str, data: bytes) -> None: ...
 
+    def get(self, path: str) -> bytes: ...
+
     def delete(self, path: str) -> None: ...
 
     def delete_prefix(self, prefix: str) -> None: ...
@@ -19,6 +21,9 @@ class LocalBlobStore:
         target = self._root / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
+
+    def get(self, path: str) -> bytes:
+        return (self._root / path).read_bytes()
 
     def delete(self, path: str) -> None:
         (self._root / path).unlink(missing_ok=True)

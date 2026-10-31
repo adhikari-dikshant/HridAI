@@ -15,13 +15,13 @@
 - **Repo (`c:\wamp64\www\HridAi`)** contains: `README.md`, `heart-screening-context.html` (canonical cross-team context), `backend/` (this folder: AI entry files + `docs/`, `.env.example`, `.gitignore`, `README.md`).
 - `app/` (React Native, owned by a teammate) and `ml/` are not in this repo yet.
 - Cloud resources (GCP project, Firebase, buckets): **not created yet** (status unknown, ask the user).
-- Model: **not trained yet**. Backend must run in mock mode until it is.
+- Model: **trained on Colab, `cardiophon-ft-0.1`, in `backend/models/` (gitignored), and wired in.** With `MOCK_INFERENCE=false` + `MOCK_QUALITY=false` the API runs ffmpeg decode, real quality checks and ONNX inference. Quality limits are set from CirCor only: 75% of CirCor test recordings pass, and `too_noisy` catches fan hum and voice in synthetic tests. They still need tuning on phone recordings. Firebase, Firestore and Gemini are still not built, so this runs only with `ENV=local|staging`. Test split, MV + AV, 129 patients: sensitivity 0.917, specificity 0.448, AUC 0.872, threshold 0.0165. Only 24 positives, and val AUC was 0.70, so treat these as rough. Backend preprocessing reproduces the Colab golden logit exactly. CirCor only: not valid for adults or phones.
 
 ## Next task
 
 1. Send `docs/openapi.json` to the app developer and confirm field names against SPEC §2 (last B1 item). Tell them `POST /v1/screenings` now takes `patient_id` + `symptoms` instead of `patient`: this breaks any client written against the old file.
 2. **B2 — deploy the mock**: needs the user to install `gcloud`, create the Google Cloud project and enable billing (`DEPLOY.md` steps 1–6). Write the Dockerfile from `DEPLOY.md` step 6 and build it with Docker running.
-3. **Run `ml/notebooks/train_cardiophon_head.ipynb` on Colab** on all patients, then put the zip's files in `backend/models/`. After changing `audio_config.py`, `audio.py` or `features.py`, run `python ml/build_notebook.py`; a test fails otherwise.
+3. **Test phone recordings** through the real pipeline and tune `CHEST_LIMITS` in `quality.py`. Tell the app developer that `confidence` now means distance from the threshold (`REVIEW.md` finding 14, applied). `demo/` has two CirCor samples for the demo. After changing `audio_config.py`, `audio.py` or `features.py`, run `python ml/build_notebook.py`; a test fails otherwise.
 4. CardioPHON licence: the user chose to use it for a 2-day private demo and email the authors later. No licence was found, and BYOL-A's licence is evaluation-only, so ask before any wider use.
 
 ## Key decisions so far
@@ -88,6 +88,11 @@ What the assistant did: read `heart-screening-context.html` in full (project spe
 No application code was written; the user asked for a plan only.
 
 ## Session log (newest first)
+
+### 2026-10-31 — Session 5 — real model in the API
+- Added safe ffmpeg decode, real quality checks, `OnnxClassifier` and the confidence rescale, test-first. Trained model ran on 244 real CirCor test recordings through the API code: 183 passed quality, and of those 24 of 30 murmur recordings were flagged, as were 68 of 153 without a murmur.
+- Heart-rate search is 30–220 bpm, and a rate above 180 falls back to the full beat when one is found, so `heart_rate_out_of_range` mostly catches slow rates. CirCor has no bpm labels, so bpm is checked on synthetic audio only.
+- `SPEC.md` lists three noise measures; the code uses two (beat contrast and mains hum).
 
 ### 2026-10-31 — Session 5 — patient profiles + neck recording
 - Added `/v1/patients`, `patient_id` on screenings, and the `NK` location, matching the updated HTML. SPEC, `openapi.json` and the smoke test match. Not committed.

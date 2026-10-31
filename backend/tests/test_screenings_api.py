@@ -277,7 +277,7 @@ def test_analyze_matches_contract(client, auth):
     }
     assert result["label"] == "needs_checkup"
     assert result["abnormal_probability"] == 0.81
-    assert result["confidence"] == 0.81
+    assert result["confidence"] == 0.85
     assert result["heart_rate_bpm"] == 76
     assert result["used_patient_data"] is False
     assert [item["location"] for item in result["per_location"]] == ["MV", "AV"]
@@ -375,8 +375,8 @@ def test_failed_analysis_returns_500_then_can_retry(client, auth, monkeypatch):
 @pytest.mark.parametrize(
     ("scenario", "label", "confidence"),
     [
-        ("normal", "normal", 0.82),
-        ("needs_checkup", "needs_checkup", 0.81),
+        ("normal", "normal", 0.74),
+        ("needs_checkup", "needs_checkup", 0.85),
         ("unclear", "unclear", 0.3),
     ],
 )

@@ -2,7 +2,7 @@
 
 > Reviewed 2026-10-31: `PLAN.md`, `SPEC.md`, `HANDOFF.md`, `README.md`, `AGENTS.md`, `.env.example` and `../../heart-screening-context.html` (ctx).
 > No backend code exists yet, so this reviews the design, not an implementation.
-> **Status:** all non-contract findings are applied to `PLAN.md`, `SPEC.md` and `heart-screening-context.html` (2026-10-31). **Still open:** contract findings 2, 10, 14, 33 and 34, which need agreement with the app developer (`AGENTS.md` rule 2); finding 23, which is a legal question; the app-side part of 35; and the over-limit status for 20.
+> **Status:** all non-contract findings are applied to `PLAN.md`, `SPEC.md` and `heart-screening-context.html` (2026-10-31). **Still open:** contract findings 2, 10, 33 and 34 (14 is now applied), which need agreement with the app developer (`AGENTS.md` rule 2); finding 23, which is a legal question; the app-side part of 35; and the over-limit status for 20.
 
 ## Verdict
 

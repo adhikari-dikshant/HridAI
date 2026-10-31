@@ -12,6 +12,13 @@ class LocationScore:
     quality_score: float
 
 
+def distance_from_threshold(probability: float, threshold: float) -> float:
+    """Confidence in the label: 0.5 at the threshold, rising to 1 at either end of the scale."""
+    if probability >= threshold:
+        return 0.5 + 0.5 * (probability - threshold) / (1 - threshold)
+    return 0.5 + 0.5 * (threshold - probability) / threshold
+
+
 def build_result(
     scores: list[LocationScore],
     heart_rates: list[int | None],
@@ -24,12 +31,9 @@ def build_result(
     if all(quality < MIN_QUALITY for quality in qualities):
         label = Label.unclear
         confidence = sum(qualities) / len(qualities)
-    elif probability >= threshold:
-        label = Label.needs_checkup
-        confidence = probability
     else:
-        label = Label.normal
-        confidence = 1 - probability
+        label = Label.needs_checkup if probability >= threshold else Label.normal
+        confidence = distance_from_threshold(probability, threshold)
 
     known_rates = [rate for rate in heart_rates if rate is not None]
     return {

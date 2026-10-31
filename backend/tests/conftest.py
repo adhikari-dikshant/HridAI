@@ -1,3 +1,4 @@
+import imageio_ffmpeg
 import pytest
 from fastapi.testclient import TestClient
 
@@ -16,6 +17,11 @@ def make_settings(tmp_path, **overrides) -> Settings:
         "local_data_dir": str(tmp_path / "local_data"),
     }
     return Settings(_env_file=None, **(values | overrides))
+
+
+@pytest.fixture
+def ffmpeg() -> str:
+    return imageio_ffmpeg.get_ffmpeg_exe()
 
 
 @pytest.fixture

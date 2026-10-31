@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     model_path: str = "models/model.onnx"
     fusion_path: str = ""
+    ffmpeg_path: str = "ffmpeg"
 
     cors_origins: str = "*"
 
@@ -42,6 +43,9 @@ class Settings(BaseSettings):
                 unsafe.append("MOCK_QUALITY=true")
             if unsafe:
                 raise ValueError(f"ENV=prod refuses: {', '.join(unsafe)}")
+        if self.mock_quality and not self.mock_inference:
+            # Real inference reads the audio that real quality checks convert.
+            raise ValueError("MOCK_INFERENCE=false needs MOCK_QUALITY=false")
         return self
 
     @property

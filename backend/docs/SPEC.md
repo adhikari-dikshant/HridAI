@@ -397,7 +397,7 @@ If the image is not a medical report, return report_type "other" and say so.
 | `needs_checkup` | `abnormal_probability ≥ T` | Please get a check-up · कृपया डॉक्टर से जाँच कराएँ |
 | `normal` | `abnormal_probability < T` | No unusual sound found · कोई असामान्य आवाज़ नहीं मिली |
 
-- `confidence` = `p` for needs_checkup, `1 − p` for normal. App shows High ≥ 0.8, Medium 0.6–0.8, Low < 0.6. (For `unclear`, backend default: confidence = mean quality score — confirm.)
+- `confidence` shows how far `p` is from `T`, because `T` is far from 0.5 (0.0165 for the current model): `0.5 + 0.5 × (p − T) / (1 − T)` for needs_checkup, `0.5 + 0.5 × (T − p) / T` for normal. So 0.5 means just at the threshold. App shows High ≥ 0.8, Medium 0.6–0.8, Low < 0.6. (For `unclear`, backend default: confidence = mean quality score — confirm.)
 - Disclaimer always included. Share text: label + bpm + date + disclaimer, no identifiers.
 
 ## 7. Configuration [ctx §14]

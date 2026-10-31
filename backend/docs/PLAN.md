@@ -138,7 +138,7 @@ This decides the audio constants, so it must finish before B4 and B5 freeze them
 - [x] Get CardioPHON; confirm weights exist (encoder only, 24.2 MB)
 - [x] Confirm sample rate and input shape (4 kHz, `[N, 1, 64, T]`, any length); ONNX export tested
 - [x] Write the training notebook: `ml/notebooks/train_cardiophon_head.ipynb` (tested end to end on 120 patients)
-- [ ] Run the notebook on all patients in Colab, and put the zip's files in `backend/models/`
+- [x] Run the notebook on all patients in Colab, and put the zip's files in `backend/models/`
 - [x] Update `SPEC.md` §4 and §4.4, and record the outcome in `HANDOFF.md`
 - [ ] Licence: user chose a 2-day private demo and will email the authors later; ask before any wider use
 
@@ -206,12 +206,12 @@ Follow `DEPLOY.md`.
 ### B4 — Audio pipeline and quality check (≈ 1.5 days)
 
 - [ ] `app/core/audio_config.py`: every constant from SPEC §4 in one frozen dataclass
-- [ ] `audio.decode()` via ffmpeg subprocess: write the upload to a temp file (not stdin; a default-muxed m4a returned exit code 0 and 0 bytes over stdin) and delete it afterwards, output `-ac 1 -ar <native> -f f32le pipe:1`
-- [ ] Harden ffmpeg: `-protocol_whitelist file`, allow only m4a/mp4/wav input formats, `-t 35`, subprocess timeout; raise `unsupported_audio` (415) on decode failure **or empty output**
+- [x] `audio.decode()` via ffmpeg subprocess: write the upload to a temp file (not stdin; a default-muxed m4a returned exit code 0 and 0 bytes over stdin) and delete it afterwards, output `-ac 1 -ar <native> -f f32le pipe:1`
+- [x] Harden ffmpeg: `-protocol_whitelist file`, allow only m4a/mp4/wav input formats, `-t 35`, subprocess timeout; raise `unsupported_audio` (415) on decode failure **or empty output**
 - [x] `preprocess` (resample, trim 1 s each side, peak normalize) in `app/services/audio.py`, shared with training
-- [ ] `bandpass` (Butterworth order 4, 25–400 Hz, `sosfiltfilt`) for quality checks only; the model gets unfiltered audio
+- [x] `bandpass` (Butterworth order 4, 25–400 Hz, `sosfiltfilt`) for quality checks only; the model gets unfiltered audio
 - [ ] Optional spike removal (Schmidt) behind a flag, default off
-- [ ] `quality.py` runs **before** `peak_normalize`, in order: `too_short`, `clipping` (on decoded audio), `too_quiet` (filtered RMS), `too_noisy` (SPEC §4.1: energy at S1/S2 vs between beats, mains hum at 50/100/150 Hz, spectral flatness), heartbeat envelope + autocorrelation searched over 30–220 bpm → `no_heartbeat_detected`, then range check 40–180 → `heart_rate_out_of_range`; score 0–1 combining the sub-metrics
+- [x] `quality.py` runs **before** `peak_normalize`, in order: `too_short`, `clipping` (on decoded audio), `too_quiet` (filtered RMS), `too_noisy` (SPEC §4.1: energy at S1/S2 vs between beats, mains hum at 50/100/150 Hz, spectral flatness), heartbeat envelope + autocorrelation searched over 30–220 bpm → `no_heartbeat_detected`, then range check 40–180 → `heart_rate_out_of_range`; score 0–1 combining the sub-metrics
 - [ ] Store converted 4 kHz WAV next to original in BlobStore
 - [ ] `scripts/make_test_audio.py`: synthetic lub-dub at 60/78/120 bpm, white noise, silence, clipped, 5 s short, 50 Hz hum
 - [ ] Unit tests per check with synthetic audio; bpm within ±5 of truth
@@ -225,14 +225,14 @@ Follow `DEPLOY.md`.
 ### B5 — Real inference (≈ 1 day, after a model exists from B7/ml)
 
 - [x] `features.py`: log-mel in numpy/scipy, no librosa at runtime, values from `audio_config.py`, matched to nnAudio by a golden test
-- [ ] `OnnxClassifier`: load once at startup from `MODEL_PATH` (file baked into the image), `intra_op_num_threads=1`, one recording at a time; a semaphore of 2 around inference
-- [ ] Validate `model_meta.json` against `audio_config.py` at startup and refuse to start on a mismatch
-- [ ] Aggregation: recording → screening = max over locations
+- [x] `OnnxClassifier`: load once at startup from `MODEL_PATH` (file baked into the image), `intra_op_num_threads=1`, one recording at a time; a semaphore of 2 around inference
+- [x] Validate `model_meta.json` against `audio_config.py` at startup and refuse to start on a mismatch
+- [x] Aggregation: recording → screening = max over locations
 - [ ] `fusion.py`: **off for MVP** (`used_patient_data=false`). If `FUSION_PATH` is set, load the JSON (logistic regression coefficients, medians, feature order). Ship it only if it beats audio-only on held-out data with the missing flags removed
-- [ ] `result.py`: unclear rule (no accepted recordings / all quality < 0.5), threshold from `model_meta.json`, confidence rule, `confidence_band` helper
-- [ ] Run analyze synchronously in a plain `def` route; take the lock from B3, then `completed`/`failed`; on failure store `failed` and return 500 with request id
+- [x] `result.py`: unclear rule (no accepted recordings / all quality < 0.5), threshold from `model_meta.json`, confidence rule, `confidence_band` helper
+- [x] Run analyze synchronously in a plain `def` route; take the lock from B3, then `completed`/`failed`; on failure store `failed` and return 500 with request id
 - [ ] Golden test: fixed WAV + fixed tiny test model → fixed probability (guards preprocessing drift)
-- [ ] `/healthz` reports real `model_version`, `mock=false`
+- [x] `/healthz` reports real `model_version`, `mock=false`
 
 **Accept:** with `MOCK_INFERENCE=false`, demo murmur sample → `needs_checkup`, demo normal → `normal`; analyze p95 < 5 s excluding Gemini.
 

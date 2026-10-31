@@ -20,6 +20,7 @@ from app.schemas import (
     ScreeningStatus,
     Source,
 )
+from app.services.decode import to_wav
 from app.services.model import Classifier
 from app.services.quality import QualityChecker
 from app.services.repository import Repository, analysis_is_running
@@ -110,14 +111,20 @@ class ScreeningService:
     ) -> AcceptedRecording | RejectedRecording:
         screening = self._owned(owner_uid, screening_id, refuse_while_analyzing=True)
 
-        quality = self.quality.check(upload.data, upload.location, upload.duration_ms)
+        checked = self.quality.check(upload.data, upload.location, upload.duration_ms)
+        quality = checked.quality
         accepted = not quality.issues
         recording_id = new_id("rec")
         storage_path = None
+        converted_path = None
         if accepted:
             # Rejected audio is not kept: consent covers storing data to give a result.
-            storage_path = f"screenings/{screening_id}/recordings/{recording_id}.{upload.extension}"
+            folder = f"screenings/{screening_id}/recordings"
+            storage_path = f"{folder}/{recording_id}.{upload.extension}"
             self.blobs.put(storage_path, upload.data)
+            if checked.audio is not None and upload.location != Location.NK:
+                converted_path = f"{folder}/{recording_id}_4k.wav"
+                self.blobs.put(converted_path, to_wav(checked.audio))
 
         self._remove_location(screening_id, upload.location)
         self.repository.save_recording(
@@ -128,6 +135,7 @@ class ScreeningService:
                 "source": upload.source,
                 "platform": upload.platform,
                 "storage_path": storage_path,
+                "converted_path": converted_path,
                 "duration_s": quality.duration_s,
                 "accepted": accepted,
                 "quality": quality.model_dump(mode="json"),
@@ -260,8 +268,9 @@ class ScreeningService:
     def _remove_location(self, screening_id: str, location: Location) -> None:
         for recording in self.repository.list_recordings(screening_id):
             if recording["location"] == location:
-                if recording["storage_path"]:
-                    self.blobs.delete(recording["storage_path"])
+                for path in (recording["storage_path"], recording["converted_path"]):
+                    if path:
+                        self.blobs.delete(path)
                 self.repository.delete_recording(screening_id, recording["recording_id"])
 
     def _status_after_upload(self, screening_id: str) -> ScreeningStatus:

@@ -607,7 +607,7 @@ If the image is not a medical report, return report_type "other" and say so.</co
 <tr><td><code>normal</code></td><td><code>abnormal_probability &lt; T</code></td><td class="ok">Green</td><td>No unusual sound found · कोई असामान्य आवाज़ नहीं मिली</td></tr>
 </table></div>
 <ul>
-  <li><code>confidence</code> = <code>abnormal_probability</code> for needs_checkup, <code>1 − abnormal_probability</code> for normal. Show as "High / Medium / Low", not a raw percent: High ≥ 0.8, Medium 0.6–0.8, Low &lt; 0.6.</li>
+  <li><code>confidence</code> shows how far <code>abnormal_probability</code> (p) is from <code>T</code>: <code>0.5 + 0.5 × (p − T) / (1 − T)</code> for needs_checkup, <code>0.5 + 0.5 × (T − p) / T</code> for normal. Show as "High / Medium / Low", not a raw percent: High ≥ 0.8, Medium 0.6–0.8, Low &lt; 0.6.</li>
   <li>Disclaimer is always visible on the result screen, not hidden behind a tap.</li>
   <li>Share text: result label + bpm + date + disclaimer. No patient identifiers; the patient nickname is shown in the app only.</li>
   <li>The neck recording is never mentioned as a finding. Results are worded as chest heart sounds only.</li>

@@ -156,17 +156,42 @@ print(recordings.groupby("split")["label"].agg(["size", "sum"]))
 '''
 
 ENCODER = '''
+CHECKPOINT_NAME = "pretrained_physionet_2022_4kHz.pth"
+CHECKPOINT_URL = (
+    "https://git.lih.lu/vdespotovic/cardiophon/-/raw/main/"
+    f"heart_sound_classification/checkpoints/{CHECKPOINT_NAME}"
+)
+CHECKPOINT_MIN_BYTES = 20_000_000
+
+
+def checkpoint_is_complete(path):
+    return path.exists() and path.stat().st_size >= CHECKPOINT_MIN_BYTES
+
+
 def checkpoint_path():
+    """Downloads the checkpoint, or asks for it by hand if this machine can't reach the server."""
     if CHECKPOINT:
         return CHECKPOINT
-    repo = WORK / "cardiophon"
-    if not repo.exists():
-        subprocess.run(
-            ["git", "clone", "--depth", "1", "https://git.lih.lu/vdespotovic/cardiophon.git",
-             str(repo)],
-            check=True,
-        )
-    return repo / "heart_sound_classification/checkpoints/pretrained_physionet_2022_4kHz.pth"
+    target = WORK / CHECKPOINT_NAME
+    if checkpoint_is_complete(target):
+        return target
+    try:
+        urlretrieve(CHECKPOINT_URL, target)
+    except OSError as error:
+        print(f"Could not download the checkpoint: {error}")
+    if checkpoint_is_complete(target):
+        return target
+
+    if "google.colab" in sys.modules:
+        from google.colab import files
+
+        print(f"Please upload {CHECKPOINT_NAME} using the button below.")
+        for name, content in files.upload().items():
+            target.write_bytes(content)
+            print(f"Received {name}")
+    if checkpoint_is_complete(target):
+        return target
+    raise RuntimeError(f"Checkpoint missing or incomplete: {CHECKPOINT_NAME}")
 
 
 class Encoder(nn.Module):
@@ -199,8 +224,9 @@ class Encoder(nn.Module):
         return torch.max(frames, dim=1)[0] + torch.mean(frames, dim=1)
 
 
+weights = torch.load(checkpoint_path(), map_location="cpu", weights_only=True)
 encoder = Encoder()
-encoder.load_state_dict(torch.load(checkpoint_path(), map_location="cpu", weights_only=True))
+encoder.load_state_dict(weights)
 encoder = encoder.to(DEVICE).eval()
 '''
 
