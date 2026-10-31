@@ -1,3 +1,4 @@
+import { File, UploadType } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { mockApi } from './mock';
@@ -82,6 +83,36 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: numb
   }
 }
 
+/** Uploads a file from the phone. Expo's fetch can't send React Native's { uri } file parts. */
+async function uploadFile<T>(
+  path: string,
+  uri: string,
+  mimeType: string,
+  parameters?: Record<string, string>
+): Promise<T> {
+  const token = await getAuthToken();
+  const { status, body } = await new File(uri).upload(`${BASE_URL}/v1${path}`, {
+    uploadType: UploadType.MULTIPART,
+    // Android otherwise names the field after the file.
+    fieldName: 'file',
+    mimeType,
+    parameters,
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    // Not JSON, so there is no backend message to show.
+  }
+  if (status < 200 || status >= 300) throw new ApiError(status, parsed?.error ?? null);
+  return parsed as T;
+}
+
 function json(body: unknown, method = 'POST'): RequestInit {
   return {
     method,
@@ -120,38 +151,16 @@ const realApi = {
   createScreening: (body: CreateScreeningRequest) =>
     request<CreateScreeningResponse>('/screenings', json(body)),
 
-  uploadRecording: (screeningId: string, input: UploadRecordingInput) => {
-    const form = new FormData();
-    // React Native's FormData takes a { uri, name, type } file descriptor.
-    form.append('file', {
-      uri: input.uri,
-      name: `${input.location}.wav`,
-      type: 'audio/wav',
-    } as unknown as Blob);
-    form.append('location', input.location);
-    form.append('source', input.source);
-    form.append('duration_ms', String(Math.round(input.durationMs)));
-    form.append('platform', Platform.OS);
+  uploadRecording: (screeningId: string, input: UploadRecordingInput) =>
+    uploadFile<RecordingResponse>(`/screenings/${screeningId}/recordings`, input.uri, 'audio/wav', {
+      location: input.location,
+      source: input.source,
+      duration_ms: String(Math.round(input.durationMs)),
+      platform: Platform.OS,
+    }),
 
-    return request<RecordingResponse>(`/screenings/${screeningId}/recordings`, {
-      method: 'POST',
-      body: form,
-    });
-  },
-
-  uploadReport: (screeningId: string, input: UploadReportInput) => {
-    const form = new FormData();
-    form.append('file', {
-      uri: input.uri,
-      name: input.name,
-      type: input.mimeType,
-    } as unknown as Blob);
-
-    return request<ReportResponse>(`/screenings/${screeningId}/reports`, {
-      method: 'POST',
-      body: form,
-    });
-  },
+  uploadReport: (screeningId: string, input: UploadReportInput) =>
+    uploadFile<ReportResponse>(`/screenings/${screeningId}/reports`, input.uri, input.mimeType),
 
   analyze: (screeningId: string) =>
     request<AnalyzeResponse>(

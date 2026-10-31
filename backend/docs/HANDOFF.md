@@ -13,8 +13,8 @@
 - **Still open, needs the user:** Google's Generative AI health terms (23); legal review before real users (27).
 - **Deploy:** use `docs/DEPLOY.md`. It has not been run yet.
 - **Repo (`c:\wamp64\www\HridAi`)** contains: `README.md`, `heart-screening-context.html` (canonical cross-team context), `backend/` (this folder: AI entry files + `docs/`, `.env.example`, `.gitignore`, `README.md`).
-- `frontend/` (Expo app) is in the repo and follows the current contract. Firebase phone login is in the code. The Phone provider and the Android app are not set up in Firebase yet, and `frontend/google-services.json` is needed before any Android build.
-- **Live:** image `2324492` runs on Cloud Run (`hridai-demo-2026`, `backend/deploy/prod.env.yaml`) with the real model, Firebase login, Firestore and Cloud Storage. `dev:` tokens get 401. No real login has reached it yet, so a full screening against Firestore and Storage is still untested.
+- `frontend/` (Expo app) is in the repo and follows the current contract. Firebase phone login is in the code and on in Firebase: Phone provider, one test number (kept in the gitignored `frontend/.env.local`), Android app `com.nipl.HridAI` and the debug keystore's SHA keys. Every Android build needs `frontend/google-services.json` and must not set `EXPO_PUBLIC_DEV_UID`, because the live backend refuses `dev:` tokens. This PC has no Android SDK, so no APK has been built here.
+- **Live:** image `2324492` runs on Cloud Run (`hridai-demo-2026`, `backend/deploy/prod.env.yaml`) with the real model, Firebase login, Firestore and Cloud Storage. `dev:` tokens get 401. A live run on 2026-11-01 passed with the Firebase test number and synthetic audio: login, patients, a full screening, health summary and delete on Firestore and Storage. The Android app's own login and real microphone audio are still untested. SMS is allowed for India only, so real OTPs can now be sent and may be charged.
 - Cloud resources: project `hridai-demo-2026` has Firebase, Cloud Run, Artifact Registry, Firestore (asia-south1), bucket `hridai-demo-2026-data` and service account `heartscreen-api`. Gemini is not set up, so explanations use templates.
 - Model: **trained on Colab, `cardiophon-ft-0.1`, in `backend/models/` (gitignored), and wired in.** With `MOCK_INFERENCE=false` + `MOCK_QUALITY=false` the API runs ffmpeg decode, real quality checks and ONNX inference. Quality limits are set from CirCor only: 75% of CirCor test recordings pass, and `too_noisy` catches fan hum and voice in synthetic tests. They still need tuning on phone recordings. Firebase, Firestore and Gemini are still not built, so this runs only with `ENV=local|staging`. Test split, MV + AV, 129 patients: sensitivity 0.917, specificity 0.448, AUC 0.872, threshold 0.0165. Only 24 positives, and val AUC was 0.70, so treat these as rough. Backend preprocessing reproduces the Colab golden logit exactly. CirCor only: not valid for adults or phones.
 
@@ -89,6 +89,10 @@ What the assistant did: read `heart-screening-context.html` in full (project spe
 No application code was written; the user asked for a plan only.
 
 ## Session log (newest first)
+
+### 2026-11-01 — Session 10 — recording upload on Android
+- The first real APK logged in and created a screening, but no recording reached the server. Expo SDK 58 replaces the global `fetch` with `expo/fetch`, which throws on React Native's `{ uri, name, type }` FormData parts. The browser tests missed it because they patched `fetch`.
+- `frontend/src/api/client.ts` now uploads with `File.upload` from `expo-file-system` in multipart mode, sent as `audio/wav`. Not tested on a phone yet.
 
 ### 2026-11-01 — Session 9 — health summary
 - Added `health_summary` to the analyze response, an additive contract change the user asked for. It's built from the patient snapshot on every read, so nothing new is stored and older completed screenings get it too. It never touches the label, and the model never sees BMI.
