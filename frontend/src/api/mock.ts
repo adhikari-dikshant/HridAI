@@ -5,8 +5,10 @@ import type {
   CreatePatientRequest,
   CreateScreeningRequest,
   CreateScreeningResponse,
+  HealthSummary,
   Label,
   Patient,
+  PatientSnapshot,
   RecordingResponse,
   ReportResponse,
   ScreeningDetail,
@@ -43,6 +45,33 @@ const EXPLANATIONS: Record<Exclude<Label, 'unclear'>, AnalyzeResponse['explanati
     hi: 'आपकी छाती के बाईं ओर की रिकॉर्डिंग में ऐसी आवाज़ मिली जो कभी-कभी हार्ट मर्मर में होती है। यह निदान नहीं है। कृपया सही जाँच के लिए डॉक्टर से मिलें।',
   },
 };
+
+/** A shorter version of the backend's rules, enough to see the card. */
+function healthSummary(patient: PatientSnapshot, label: Label): HealthSummary {
+  const { age_years, height_cm, weight_kg, symptoms, known_conditions } = patient;
+  const bmi =
+    height_cm && weight_kg ? Math.round((weight_kg / (height_cm / 100) ** 2) * 10) / 10 : null;
+  const adult = bmi !== null && age_years >= 18;
+  const seeDoctor = label === 'needs_checkup' || symptoms.length > 0;
+  return {
+    bmi,
+    bmi_category: !adult
+      ? null
+      : bmi < 18.5
+        ? 'underweight'
+        : bmi < 25
+          ? 'healthy'
+          : bmi < 30
+            ? 'overweight'
+            : 'obese',
+    symptoms,
+    known_conditions,
+    suggestions: {
+      en: seeDoctor ? ['Take this result to a doctor for a check-up.'] : [],
+      hi: seeDoctor ? ['यह नतीजा लेकर डॉक्टर से जाँच कराएँ।'] : [],
+    },
+  };
+}
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -214,6 +243,7 @@ export const mockApi = {
       },
       explanation: EXPLANATIONS[label],
       report_summaries: [],
+      health_summary: healthSummary(screening.patient, label),
       disclaimer: DISCLAIMER,
       completed_at: new Date().toISOString(),
     };

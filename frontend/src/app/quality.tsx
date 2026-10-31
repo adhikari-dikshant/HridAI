@@ -1,6 +1,7 @@
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { reportsEnabled } from '@/api/client';
 import type { QualityIssue } from '@/api/types';
 import { AppText } from '@/components/app-text';
 import { Art, type ArtworkName } from '@/components/art';
@@ -8,13 +9,19 @@ import { Button } from '@/components/button';
 import { Card, CardRow } from '@/components/card';
 import { IconTile } from '@/components/icon-tile';
 import { Note } from '@/components/note';
+import { PlayRecording } from '@/components/play-recording';
 import { Screen } from '@/components/screen';
+import { SessionLost } from '@/components/session-lost';
 import { StepProgress } from '@/components/step-progress';
-import { Spots, isSpot } from '@/constants/chest-locations';
+import { Spots, isChestLocation, isSpot } from '@/constants/chest-locations';
 import { Palette, Shadow } from '@/constants/theme';
+import { useLeaveSpot } from '@/hooks/use-leave-spot';
 import type { StringKey } from '@/i18n/strings';
 import { Strings } from '@/i18n/strings';
-import { hasAcceptedChest, useScreening } from '@/state/screening';
+import { hasAcceptedChest, nextSpot, useScreening } from '@/state/screening';
+
+// After this many failed tries at a spot, the person can move on instead of being stuck.
+const MAX_TRIES = 2;
 
 const ISSUES: QualityIssue[] = [
   'too_short',
@@ -36,16 +43,17 @@ function isIssue(value: unknown): value is QualityIssue {
 }
 
 export default function QualityScreen() {
-  const { t, lang, session } = useScreening();
+  const { t, lang, session, endSession } = useScreening();
   // `issue` is set when the phone's own check rejected the recording before upload.
   const params = useLocalSearchParams<{ location?: string; issue?: string }>();
+  const leaveSpot = useLeaveSpot();
 
-  if (!session || !isSpot(params.location)) return <Redirect href="/" />;
+  if (!session || !isSpot(params.location)) return <SessionLost />;
 
   const location = params.location;
   const recording = session.recordings[location];
   const localIssue = isIssue(params.issue) ? params.issue : null;
-  if (!localIssue && !recording) return <Redirect href="/" />;
+  if (!localIssue && !recording) return <SessionLost />;
 
   const spot = Spots[location][lang];
   const recordAgain = () => router.replace({ pathname: '/record', params: { location } });
@@ -53,9 +61,10 @@ export default function QualityScreen() {
     <Button
       label={t('guide.skipNeck')}
       variant="ghost"
-      onPress={() => router.push('/reports')}
+      onPress={() => leaveSpot('NK')}
     />
   );
+  const localFile = session.localFiles[location];
 
   if (localIssue || !recording?.accepted) {
     const issue = localIssue ?? recording?.quality.issues[0] ?? 'too_noisy';
@@ -67,6 +76,10 @@ export default function QualityScreen() {
     const messageHi = local
       ? Strings.hi[`record.${localIssue}`]
       : (recording?.message_hi ?? Strings.hi.genericError);
+
+    const tooManyTries = (session.failedTries[location] ?? 0) >= MAX_TRIES;
+    const other = nextSpot(session, location);
+    const canMoveOn = hasAcceptedChest(session) || (other !== undefined && isChestLocation(other));
 
     return (
       <Screen
@@ -80,7 +93,25 @@ export default function QualityScreen() {
               variant="ghost"
               onPress={() => router.replace({ pathname: '/guide', params: { location } })}
             />
-            {location === 'NK' && hasAcceptedChest(session) && skipNeck}
+            {location === 'NK'
+              ? hasAcceptedChest(session) && skipNeck
+              : tooManyTries &&
+                (canMoveOn ? (
+                  <Button
+                    label={t('quality.moveOn')}
+                    variant="ghost"
+                    onPress={() => leaveSpot(location)}
+                  />
+                ) : (
+                  <Button
+                    label={t('quality.tryLater')}
+                    variant="ghost"
+                    onPress={() => {
+                      endSession();
+                      router.replace('/patients');
+                    }}
+                  />
+                ))}
           </>
         }>
         <StepProgress step={3} name={t('guide.step')} />
@@ -100,7 +131,13 @@ export default function QualityScreen() {
           </AppText>
         </View>
 
-        <Note text={t('quality.notYourHeart')} />
+        {localFile && <PlayRecording uri={localFile} />}
+
+        {tooManyTries && location !== 'NK' ? (
+          <Note tone="alert" text={t(canMoveOn ? 'quality.hardSpot' : 'quality.tryLaterBody')} />
+        ) : (
+          <Note text={t('quality.notYourHeart')} />
+        )}
 
         <Card title={t('quality.fixes')}>
           {FIXES.map((fix) => (
@@ -116,7 +153,7 @@ export default function QualityScreen() {
     );
   }
 
-  const next = session.required_locations.find((l) => !session.recordings[l]?.accepted);
+  const next = nextSpot(session);
   const nextName = next ? Spots[next][lang].name : null;
   const bpm = recording.quality.heart_rate_bpm;
   const optional = session.optional_locations.filter((l) => !session.recordings[l]?.accepted);
@@ -132,7 +169,10 @@ export default function QualityScreen() {
               onPress={() => router.push({ pathname: '/guide', params: { location: next } })}
             />
           ) : (
-            <Button label={t('continue')} onPress={() => router.push('/reports')} />
+            <Button
+              label={t('continue')}
+              onPress={() => router.push(reportsEnabled ? '/reports' : '/analyzing')}
+            />
           )}
           <Button
             label={t('quality.again', { name: spot.name.toLocaleLowerCase() })}
@@ -157,6 +197,8 @@ export default function QualityScreen() {
             : t('quality.capturedDone', { name: spot.name })}
         </AppText>
       </View>
+
+      {localFile && <PlayRecording uri={localFile} />}
 
       <View style={styles.stats}>
         <Stat
@@ -194,7 +236,11 @@ export default function QualityScreen() {
                   size={13}
                   weight="medium"
                   color={done ? Palette.ok : isNext ? Palette.ink : Palette.ink3}>
-                  {done ? t('guide.recorded') : t('guide.next')}
+                  {done
+                    ? t('guide.recorded')
+                    : session.skipped.includes(l)
+                      ? t('quality.skipped')
+                      : t('guide.next')}
                 </AppText>
               }
             />

@@ -1,12 +1,12 @@
 import { Image } from 'expo-image';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
-import { api } from '@/api/client';
+import { api, errorMessage } from '@/api/client';
 import type { ScreeningListItem } from '@/api/types';
 import { AppText } from '@/components/app-text';
 import { Art } from '@/components/art';
@@ -15,35 +15,38 @@ import { IconTile } from '@/components/icon-tile';
 import { Screen } from '@/components/screen';
 import { Outcomes } from '@/constants/outcomes';
 import { Palette, Shadow } from '@/constants/theme';
+import { useSignedIn } from '@/state/auth';
 import { useScreening } from '@/state/screening';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export default function HistoryScreen() {
   const { t, lang } = useScreening();
+  const signedIn = useSignedIn();
   // Set when opened for one patient; otherwise lists every screening on this account.
   const { patientId } = useLocalSearchParams<{ patientId?: string }>();
   const [patientLabel, setPatientLabel] = useState<string | null>(null);
   const [items, setItems] = useState<ScreeningListItem[] | null>(null);
   // When the list was fetched, for splitting "this week" from "earlier".
   const [loadedAt, setLoadedAt] = useState(0);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    setFailed(false);
+    if (!signedIn) return;
+    setError(null);
     api
       .listScreenings(patientId)
       .then((list) => {
         setItems(list);
         setLoadedAt(Date.now());
       })
-      .catch(() => setFailed(true));
-  }, [patientId]);
+      .catch((cause) => setError(errorMessage(cause, lang)));
+  }, [patientId, signedIn, lang]);
 
   useFocusEffect(load);
 
   useEffect(() => {
-    if (!patientId) return;
+    if (!patientId || !signedIn) return;
     let cancelled = false;
     api
       .getPatient(patientId)
@@ -52,7 +55,9 @@ export default function HistoryScreen() {
     return () => {
       cancelled = true;
     };
-  }, [patientId]);
+  }, [patientId, signedIn]);
+
+  if (signedIn === false) return <Redirect href="/login" />;
 
   function confirmDelete(id: string, swipeable: SwipeableMethods) {
     Alert.alert(t('history.deleteTitle'), t('history.deleteBody'), [
@@ -64,7 +69,7 @@ export default function HistoryScreen() {
           api
             .deleteScreening(id)
             .then(load)
-            .catch(() => setFailed(true));
+            .catch((cause) => setError(errorMessage(cause, lang)));
         },
       },
     ]);
@@ -83,7 +88,7 @@ export default function HistoryScreen() {
             api
               .deletePatient(id)
               .then(() => router.back())
-              .catch(() => setFailed(true));
+              .catch((cause) => setError(errorMessage(cause, lang)));
           },
         },
       ]
@@ -191,9 +196,11 @@ export default function HistoryScreen() {
         />
       </View>
 
-      {failed ? (
+      {error ? (
         <View style={styles.center}>
-          <AppText color={Palette.ink2}>{t('genericError')}</AppText>
+          <AppText color={Palette.ink2} align="center">
+            {error}
+          </AppText>
           <Button label={t('retry')} variant="ghost" onPress={load} />
         </View>
       ) : items === null ? (

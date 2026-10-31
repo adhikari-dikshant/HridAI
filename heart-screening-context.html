@@ -168,7 +168,7 @@ flowchart TD
 <div class="tbl"><table>
 <tr><th>Layer</th><th>Choice</th><th>Notes</th></tr>
 <tr><td>Mobile</td><td>React Native + Expo + TypeScript</td><td><code>expo-audio</code> for recording, <code>expo-document-picker</code> / <code>expo-image-picker</code> for reports</td></tr>
-<tr><td>Auth</td><td>Firebase Auth (anonymous sign-in for demo)</td><td>App sends Firebase ID token as Bearer token</td></tr>
+<tr><td>Auth</td><td>Firebase Auth (phone number + OTP)</td><td>App sends Firebase ID token as Bearer token</td></tr>
 <tr><td>Backend</td><td>Python 3.11, FastAPI, Uvicorn</td><td><code>python-multipart</code>, <code>pydantic-settings</code></td></tr>
 <tr><td>Audio</td><td>ffmpeg, scipy, numpy</td><td>ffmpeg installed in Docker image</td></tr>
 <tr><td>ML</td><td>PyTorch for training, ONNX Runtime (CPU) at inference</td><td>CardioPHON pretrained model if usable, else small CNN baseline</td></tr>
@@ -184,7 +184,7 @@ flowchart TD
 <h2 id="flow"><span class="n">06</span>User flow and screens</h2>
 <div class="tbl"><table>
 <tr><th>#</th><th>Screen</th><th>What it does</th><th>API</th></tr>
-<tr><td>1</td><td>Welcome</td><td>Pick language (Hindi / English). Anonymous Firebase sign-in in background.</td><td>none</td></tr>
+<tr><td>1</td><td>Welcome</td><td>Pick language (Hindi / English). Get started opens a phone number + OTP login unless the user is already logged in.</td><td>none</td></tr>
 <tr><td>2</td><td>Patients</td><td>List of saved profiles with nickname, age, sex and last screening date. Filter on the device. Pick one to start a screening or open its history, or tap "Add patient". First launch goes straight to adding a patient.</td><td><code>GET /v1/patients</code></td></tr>
 <tr><td>3</td><td>Consent</td><td>Screening disclaimer + data use, shown for every screening. Checkbox required to continue. If the patient is someone else, they (or their guardian) must agree before the user ticks it.</td><td>none</td></tr>
 <tr><td>4</td><td>Patient details</td><td>New patient: empty form. Saved patient: pre-filled, confirm or edit. Nickname or code, age, sex, height, weight (required: nickname, age, sex). Known conditions are saved on the profile. Symptoms are asked fresh each time.</td><td><code>POST /v1/patients</code> or <code>PATCH /v1/patients/{id}</code>, then <code>POST /v1/screenings</code></td></tr>
@@ -193,7 +193,7 @@ flowchart TD
 <tr><td>7</td><td>Quality feedback</td><td>Upload, then show accepted ✓ + bpm, or the reason + "Record again". Next spot or continue. The neck step can be skipped.</td><td><code>POST /v1/screenings/{id}/recordings</code></td></tr>
 <tr><td>8</td><td>Reports (optional)</td><td>Upload old report photo/PDF. Skippable.</td><td><code>POST /v1/screenings/{id}/reports</code></td></tr>
 <tr><td>9</td><td>Analyzing</td><td>Loader, 5–15 s. Show a reassuring line, not a medical one.</td><td><code>POST /v1/screenings/{id}/analyze</code></td></tr>
-<tr><td>10</td><td>Result</td><td>Patient nickname, label badge, bpm, confidence, explanation (language toggle), disclaimer, share button, heatmap (stretch).</td><td>response of analyze</td></tr>
+<tr><td>10</td><td>Result</td><td>Patient nickname, label badge, bpm, confidence, explanation (language toggle), health summary (BMI, symptoms, known conditions, fixed general suggestions; never changes the result), disclaimer, share button, heatmap (stretch).</td><td>response of analyze</td></tr>
 <tr><td>11</td><td>History</td><td>Past screenings of the selected patient with date + label. Delete a screening, or delete the whole patient.</td><td><code>GET /v1/screenings?patient_id=</code>, <code>DELETE</code></td></tr>
 </table></div>
 <p>Minimum to analyze: <b>1 accepted chest recording</b>. App should push for 2 (MV + AV) plus the neck recording in MVP. A neck recording alone is not enough.</p>
@@ -387,6 +387,13 @@ platform      ios | android
     "hi": "आपकी छाती के बाईं ओर की रिकॉर्डिंग में ऐसी आवाज़ मिली जो कभी-कभी हार्ट मर्मर में होती है। यह निदान नहीं है। कृपया सही जाँच के लिए डॉक्टर से मिलें।"
   },
   "report_summaries": [],
+  "health_summary": {                      // never changes the result
+    "bmi": 23.7,                           // null if height or weight is missing or implausible
+    "bmi_category": "healthy",             // underweight | healthy | overweight | obese; null under 18
+    "symptoms": ["breathlessness"],
+    "known_conditions": [],
+    "suggestions": { "en": ["..."], "hi": ["..."] }   // fixed messages, never Gemini
+  },
   "disclaimer": {
     "en": "This is an AI screening tool, not a medical diagnosis. Always consult a doctor.",
     "hi": "यह एक AI स्क्रीनिंग टूल है, मेडिकल निदान नहीं। हमेशा डॉक्टर से सलाह लें।"
@@ -434,6 +441,10 @@ export interface AnalyzeResponse {
   };
   explanation: Record&lt;Lang, string&gt;;
   report_summaries: { report_id: string; summary_en: string; summary_hi: string }[];
+  health_summary: {
+    bmi: number | null; bmi_category: "underweight" | "healthy" | "overweight" | "obese" | null;
+    symptoms: string[]; known_conditions: string[]; suggestions: Record&lt;Lang, string[]&gt;;
+  };
   disclaimer: Record&lt;Lang, string&gt;;
   completed_at: string;
 }</code></pre>
@@ -472,7 +483,7 @@ gs://&lt;project&gt;-ml/models/{model_version}/                               //
 <p>Security rules: <b>deny all client reads/writes</b>. Only the backend (Admin SDK) touches Firestore/Storage. Heatmaps are served through short-lived signed URLs.</p>
 <p>The data bucket has soft delete off, so deleting a screening really deletes its audio, and a 30-day lifecycle rule on <code>screenings/</code> as a backstop. Rejected recordings keep metadata only; their audio is deleted after the quality check.</p>
 <p>Profiles stay until the user deletes them. The 30-day rule applies to audio, not to profiles.</p>
-<p><b>No phone numbers or addresses are stored, and full names are not asked for.</b> The only free-text identifier is the patient <code>label</code>, a nickname or code such as "Papa" or "Camp-12". The form hint says not to enter a full name, but a user can still type one, so treat <code>label</code> as personal data: it stays out of logs, Gemini prompts, screening snapshots and share text.</p>
+<p><b>Firebase Auth holds the login phone number. Our database never stores it, and no addresses are stored or full names asked for.</b> The phone number stays out of logs and Gemini prompts. The only free-text identifier is the patient <code>label</code>, a nickname or code such as "Papa" or "Camp-12". The form hint says not to enter a full name, but a user can still type one, so treat <code>label</code> as personal data: it stays out of logs, Gemini prompts, screening snapshots and share text.</p>
 
 <!-- ============================== -->
 <h2 id="pipeline"><span class="n">10</span>Audio pipeline (backend)</h2>
@@ -700,7 +711,7 @@ google-genai</code></pre>
 <ul>
   <li><b>Consent screen</b> before any data is collected. Store consent version + timestamp.</li>
   <li>Consent is per screening. When an ASHA worker or relative records someone else, that person (or their guardian) gives consent, not the app user.</li>
-  <li>Collect the minimum: no phone, address, exact date of birth or full name. Profiles use a nickname or code.</li>
+  <li>Collect the minimum: a mobile number for login only, and no address, exact date of birth or full name. Profiles use a nickname or code.</li>
   <li>Users can delete a screening (all audio and reports) or a whole patient profile (all of that patient's screenings).</li>
   <li><b>Neck recording:</b> light touch only, skippable, with a stop-if-dizzy warning (section 7). A doctor should review this instruction before real users.</li>
   <li>A neck recording can also capture voice if the person talks. It gets the same 30-day limit and deletion rules as other audio.</li>
@@ -711,7 +722,7 @@ google-genai</code></pre>
   <li>Team test recordings: only from people who agreed, and never used to claim accuracy.</li>
   <li>Wording: "screening", "pre-check", "may need a check-up". Never "diagnosis".</li>
 </ul>
-<p><b>Consent text (draft, EN):</b> "This app records sounds from your chest and neck and uses AI to check if your heartbeat sounds normal. It is a screening tool and does not replace a doctor. Your recordings and a saved profile (a nickname or code, age, sex, height, weight) are stored securely to give you a result and keep your history. Please do not enter a full name or phone number. You can delete your data at any time."</p>
+<p><b>Consent text (draft, EN):</b> "This app records sounds from your chest and neck and uses AI to check if your heartbeat sounds normal. It is a screening tool and does not replace a doctor. Your recordings and a saved profile (a nickname or code, age, sex, height, weight) are stored securely to give you a result and keep your history. Your mobile number is used only to log in. Please do not enter a full name in a profile. You can delete your data at any time."</p>
 
 <!-- ============================== -->
 <h2 id="demo"><span class="n">17</span>Demo plan</h2>
@@ -734,7 +745,7 @@ google-genai</code></pre>
   <li>Download PhysioNet 2016 + CirCor</li>
   <li>One-day CardioPHON trial, before audio constants are fixed</li>
   <li>Backend skeleton with <code>/healthz</code> + mock mode deployed to Cloud Run</li>
-  <li>Expo app skeleton with navigation + anonymous Firebase auth</li>
+  <li>Expo app skeleton with navigation + Firebase phone login</li>
 </ul>
 <h3>Phase 1: core</h3>
 <ul class="check">
@@ -779,7 +790,6 @@ google-genai</code></pre>
 <tr><td>Neck side</td><td>One side vs both sides (<code>NKL</code> + <code>NKR</code>)</td><td>One recording, either side (<code>NK</code>)</td></tr>
 <tr><td>Neck data retention</td><td>Keep to 30 days vs longer with separate consent, which a neck model would need</td><td>30 days, same as other audio</td></tr>
 <tr><td>Profile identifier</td><td>Server-stored nickname vs nickname on the device only</td><td>Server-stored nickname or code</td></tr>
-<tr><td>Durable accounts</td><td>Anonymous only vs link to Google or phone sign-in. Reinstalling the app loses an anonymous account, and with it every patient profile</td><td>Anonymous for the demo; linked sign-in before any real ASHA use</td></tr>
 </table></div>
 
 <!-- ============================== -->

@@ -1,15 +1,16 @@
 import { Image } from 'expo-image';
-import { Redirect, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { api } from '@/api/client';
+import { api, errorMessage } from '@/api/client';
 import { AppText } from '@/components/app-text';
 import { Art } from '@/components/art';
 import { Button } from '@/components/button';
 import { Card, CardRow } from '@/components/card';
 import { IconTile } from '@/components/icon-tile';
 import { Screen } from '@/components/screen';
+import { SessionLost } from '@/components/session-lost';
 import { Palette } from '@/constants/theme';
 import type { StringKey } from '@/i18n/strings';
 import { useScreening } from '@/state/screening';
@@ -19,8 +20,8 @@ const STEPS: StringKey[] = ['analyzing.step1', 'analyzing.step2', 'analyzing.ste
 const WRITING_AFTER_MS = 4000;
 
 export default function AnalyzingScreen() {
-  const { t, session, setResult } = useScreening();
-  const [failed, setFailed] = useState(false);
+  const { t, lang, session, setResult, clearLocalFiles } = useScreening();
+  const [error, setError] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState(1);
   // Guards against the effect running twice in development.
   const startedRef = useRef(false);
@@ -28,14 +29,15 @@ export default function AnalyzingScreen() {
   const screeningId = session?.screening_id;
 
   async function analyze(id: string) {
-    setFailed(false);
+    setError(null);
     try {
       const response = await api.analyze(id);
       setResult(response);
+      clearLocalFiles();
       router.dismissAll();
       router.push('/result');
-    } catch {
-      setFailed(true);
+    } catch (cause) {
+      setError(errorMessage(cause, lang));
     }
   }
 
@@ -50,14 +52,14 @@ export default function AnalyzingScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!screeningId) return <Redirect href="/" />;
+  if (!screeningId) return <SessionLost />;
 
   return (
     <Screen
       centered
       gap={36}
       footer={
-        failed && (
+        error && (
           <>
             <Button label={t('retry')} onPress={() => analyze(screeningId)} />
             <Button label={t('cancel')} variant="ghost" onPress={() => router.back()} />
@@ -84,11 +86,11 @@ export default function AnalyzingScreen() {
             {t('analyzing.title')}
           </AppText>
           <AppText size={15} leading={22} color={Palette.ink2} align="center">
-            {failed ? t('genericError') : t('analyzing.line')}
+            {error ?? t('analyzing.line')}
           </AppText>
         </View>
 
-        {!failed && (
+        {!error && (
           <Card variant="list" style={styles.steps}>
             {STEPS.map((step, i) => {
               const done = i < activeStep;

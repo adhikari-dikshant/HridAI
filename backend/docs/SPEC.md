@@ -184,6 +184,13 @@ No body. Runs model + Gemini. Needs ≥ 1 accepted chest recording, else 409 `no
   },
   "explanation": { "en": "...", "hi": "..." },
   "report_summaries": [],
+  "health_summary": {                      // never changes the result
+    "bmi": 23.7,                           // null if height or weight is missing or implausible
+    "bmi_category": "healthy",             // underweight | healthy | overweight | obese; null under 18
+    "symptoms": ["breathlessness"],
+    "known_conditions": [],
+    "suggestions": { "en": ["..."], "hi": ["..."] }   // fixed messages, never Gemini
+  },
   "disclaimer": {
     "en": "This is an AI screening tool, not a medical diagnosis. Always consult a doctor.",
     "hi": "यह एक AI स्क्रीनिंग टूल है, मेडिकल निदान नहीं। हमेशा डॉक्टर से सलाह लें।"
@@ -191,6 +198,8 @@ No body. Runs model + Gemini. Needs ≥ 1 accepted chest recording, else 409 `no
   "completed_at": "2026-11-02T10:18:40Z"
 }
 ```
+
+`health_summary` is worked out from the screening's patient snapshot and sits beside the result. It never changes the label, and the model never sees BMI. Adult BMI ranges are WHO's; under-18s get the number with no category. Suggestions are fixed general advice with no medicines, doses or disease names. Chest pain or fainting puts a doctor visit first and drops the walking and weight tips, and a normal result with symptoms still advises a doctor.
 
 ### `GET /v1/screenings/{screening_id}` → 200
 Full screening: `patient_id`, patient snapshot, recordings including `NK` (no audio bytes), status, and the analyze response if completed.
@@ -238,6 +247,10 @@ export interface AnalyzeResponse {
   };
   explanation: Record<Lang, string>;
   report_summaries: { report_id: string; summary_en: string; summary_hi: string }[];
+  health_summary: {
+    bmi: number | null; bmi_category: "underweight" | "healthy" | "overweight" | "obese" | null;
+    symptoms: string[]; known_conditions: string[]; suggestions: Record<Lang, string[]>;
+  };
   disclaimer: Record<Lang, string>;
   completed_at: string;
 }
@@ -291,7 +304,7 @@ gs://<project>-ml/models/{model_version}/                               // separ
 - Rejected recordings: metadata only, audio deleted after the quality check.
 - Heatmaps via short-lived signed URLs.
 - Profiles stay until the user deletes them. The 30-day rule applies to audio, not to profiles.
-- **No phone numbers, addresses or exact DOB, and full names are not asked for.** The only free-text identifier is the patient `label`, a nickname or code. A user can still type a real name, so treat `label` as personal data: it stays out of logs, Gemini prompts, screening snapshots and share text.
+- **Firebase Auth holds the login phone number. Firestore never stores it, and it stays out of logs and Gemini prompts. No addresses or exact DOB are stored, and full names are not asked for.** The only free-text identifier is the patient `label`, a nickname or code. A user can still type a real name, so treat `label` as personal data: it stays out of logs, Gemini prompts, screening snapshots and share text.
 
 ## 4. Audio pipeline [ctx §10, §11]
 

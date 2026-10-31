@@ -16,6 +16,7 @@ export type Symptom =
   | 'fainting'
   | 'swelling';
 export type KnownCondition = 'hypertension' | 'diabetes' | 'known_heart_disease' | 'other';
+export type BmiCategory = 'underweight' | 'healthy' | 'overweight' | 'obese';
 export type ScreeningStatus =
   | 'awaiting_recordings'
   | 'ready'
@@ -116,6 +117,17 @@ export interface ReportResponse {
   summary_hi: string;
 }
 
+/** Extra information beside the result. It never changes the result. */
+export interface HealthSummary {
+  /** Null when height or weight is missing or looks mistyped. */
+  bmi: number | null;
+  /** Null for anyone under 18, who gets the number only. */
+  bmi_category: BmiCategory | null;
+  symptoms: Symptom[];
+  known_conditions: KnownCondition[];
+  suggestions: Record<Lang, string[]>;
+}
+
 export interface AnalyzeResponse {
   screening_id: string;
   status: 'completed' | 'failed';
@@ -135,6 +147,7 @@ export interface AnalyzeResponse {
   };
   explanation: Record<Lang, string>;
   report_summaries: { report_id: string; summary_en: string; summary_hi: string }[];
+  health_summary: HealthSummary;
   disclaimer: Record<Lang, string>;
   completed_at: string;
 }

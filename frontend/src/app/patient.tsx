@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, TextInput, View } from 'react-native';
 
-import { api } from '@/api/client';
+import { api, errorMessage } from '@/api/client';
 import type {
   Consent,
   KnownCondition,
@@ -15,6 +15,7 @@ import type {
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { ChoiceChip } from '@/components/choice-chip';
+import { Note } from '@/components/note';
 import { Screen } from '@/components/screen';
 import { Segmented } from '@/components/segmented';
 import { StepProgress } from '@/components/step-progress';
@@ -31,6 +32,8 @@ const SYMPTOMS: Symptom[] = [
   'fainting',
   'swelling',
 ];
+// Same red flags as the result screen, shown before any recording starts.
+const URGENT_SYMPTOMS: Symptom[] = ['chest_pain', 'fainting'];
 const CONDITIONS: KnownCondition[] = ['hypertension', 'diabetes', 'known_heart_disease', 'other'];
 
 export default function PatientScreen() {
@@ -40,7 +43,7 @@ export default function PatientScreen() {
   // The profile on the server. Kept after creating one, so a retry never adds it twice.
   const [saved, setSaved] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(Boolean(patientId));
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [label, setLabel] = useState('');
   const [age, setAge] = useState('');
   const [sex, setSex] = useState<Sex | null>(null);
@@ -70,12 +73,12 @@ export default function PatientScreen() {
         setWeight(patient.weight_kg?.toString() ?? '');
         setConditions(patient.known_conditions);
       })
-      .catch(() => !cancelled && setLoadFailed(true))
+      .catch((cause) => !cancelled && setLoadError(errorMessage(cause, lang)))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [patientId]);
+  }, [patientId, lang]);
 
   async function savePatient(details: PatientDetails) {
     if (!saved) return api.createPatient({ consent: CONSENT, ...details });
@@ -116,14 +119,14 @@ export default function PatientScreen() {
       });
       startSession(created, patient, symptoms);
       router.push({ pathname: '/guide', params: { location: created.required_locations[0] } });
-    } catch {
-      setError(t('genericError'));
+    } catch (cause) {
+      setError(errorMessage(cause, lang));
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (loading || loadFailed) {
+  if (loading || loadError) {
     return (
       <Screen title={t('patient.title')} centered>
         <View style={styles.center}>
@@ -131,7 +134,7 @@ export default function PatientScreen() {
             <ActivityIndicator color={Palette.brand} />
           ) : (
             <AppText color={Palette.ink2} align="center">
-              {t('genericError')}
+              {loadError}
             </AppText>
           )}
         </View>
@@ -220,6 +223,9 @@ export default function PatientScreen() {
             />
           ))}
         </View>
+        {symptoms.some((s) => URGENT_SYMPTOMS.includes(s)) && (
+          <Note tone="alert" text={t('result.urgent')} />
+        )}
       </View>
 
       <View style={styles.chipGroup}>

@@ -2,12 +2,13 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppText } from './app-text';
 
+import { reportsEnabled } from '@/api/client';
 import { Palette } from '@/constants/theme';
 import { useScreening } from '@/state/screening';
 
-const TOTAL = 4;
+const TOTAL = reportsEnabled ? 4 : 3;
 
-/** The four-segment bar and "STEP n OF 4 · NAME" caption above each flow screen. */
+/** The segment bar and "STEP n OF 4 · NAME" caption above each flow screen. */
 export function StepProgress({ step, name }: { step: number; name: string }) {
   const { t } = useScreening();
 

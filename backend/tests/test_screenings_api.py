@@ -257,6 +257,7 @@ def test_analyze_matches_contract(client, auth):
         "result",
         "explanation",
         "report_summaries",
+        "health_summary",
         "disclaimer",
         "completed_at",
     }

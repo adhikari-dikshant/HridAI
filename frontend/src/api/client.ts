@@ -7,6 +7,7 @@ import type {
   CreatePatientRequest,
   CreateScreeningRequest,
   CreateScreeningResponse,
+  Lang,
   Location,
   Patient,
   RecordingResponse,
@@ -17,6 +18,9 @@ import type {
   UpdatePatientRequest,
 } from './types';
 
+import { getLoginToken } from '@/auth/phone-auth';
+import { translate } from '@/i18n/strings';
+
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 // Local backend with AUTH_MODE=dev only. Never set this in a production build.
 const DEV_UID = process.env.EXPO_PUBLIC_DEV_UID;
@@ -24,6 +28,10 @@ const ANALYZE_TIMEOUT_MS = 45_000;
 
 /** Without a backend URL the app runs against an in-memory mock. */
 export const isMockApi = !BASE_URL;
+/** The mock and dev login don't use the phone login. */
+export const requiresLogin = !isMockApi && !DEV_UID;
+/** The backend has no report upload yet, so only the mock shows that step. */
+export const reportsEnabled = isMockApi;
 
 export class ApiError extends Error {
   constructor(
@@ -34,9 +42,19 @@ export class ApiError extends Error {
   }
 }
 
-// TODO: return the Firebase ID token once anonymous auth is added.
 async function getAuthToken(): Promise<string | null> {
-  return DEV_UID ? `dev:${DEV_UID}` : null;
+  if (DEV_UID) return `dev:${DEV_UID}`;
+  return requiresLogin ? getLoginToken() : null;
+}
+
+/** The backend's own message when there is one, otherwise what most likely went wrong. */
+export function errorMessage(error: unknown, lang: Lang) {
+  if (error instanceof ApiError && error.body) {
+    return lang === 'hi' ? error.body.message_hi : error.body.message_en;
+  }
+  if ((error as Error | null)?.name === 'AbortError') return translate(lang, 'error.timeout');
+  if (error instanceof TypeError) return translate(lang, 'error.offline');
+  return translate(lang, 'genericError');
 }
 
 async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: number): Promise<T> {

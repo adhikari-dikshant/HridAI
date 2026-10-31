@@ -1,21 +1,29 @@
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
-import { api } from '@/api/client';
+import { api, errorMessage } from '@/api/client';
 import { AppText } from '@/components/app-text';
 import { Art, type ArtworkName } from '@/components/art';
 import { Button } from '@/components/button';
 import { LevelBars } from '@/components/level-bars';
 import { Screen } from '@/components/screen';
+import { SessionLost } from '@/components/session-lost';
 import { TimerRing } from '@/components/timer-ring';
 import { Spots, isSpot } from '@/constants/chest-locations';
 import { Palette } from '@/constants/theme';
 import { useHeartRecorder } from '@/hooks/use-heart-recorder';
 import type { StringKey } from '@/i18n/strings';
 import { useScreening } from '@/state/screening';
+import { buzz, say, stopSpeaking } from '@/utils/cues';
 
 const COUNTDOWN_S = 3;
+const ROOM_CHECK_MS = 3000;
+// Average mic level above which the room is probably too loud, in dBFS. A first guess, so it only
+// warns and never blocks. Tune it on real phones.
+const NOISY_ROOM_DB = -42;
+// Lets the vibration die away before the mic opens.
+const CUE_SETTLE_MS = 500;
 
 const READY_TIPS: { icon: ArtworkName; text: StringKey }[] = [
   { icon: 'icon-micoff-white', text: 'record.quiet' },
@@ -24,13 +32,15 @@ const READY_TIPS: { icon: ArtworkName; text: StringKey }[] = [
 ];
 
 export default function RecordScreen() {
-  const { t, lang, session, source, saveRecording } = useScreening();
+  const { t, lang, session, source, saveRecording, saveLocalFile, countFailure } = useScreening();
   const params = useLocalSearchParams<{ location?: string }>();
 
   const rec = useHeartRecorder();
+  const [stage, setStage] = useState<'room' | 'noisy' | 'countdown'>('room');
   const [countdown, setCountdown] = useState<number | null>(COUNTDOWN_S);
   const [uploading, setUploading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   // Bumped on cancel so a running countdown knows to stop.
   const countdownIdRef = useRef(0);
   // Guards against effects running twice in development.
@@ -53,7 +63,7 @@ export default function RecordScreen() {
     void finish();
   });
 
-  if (!session || !location) return <Redirect href="/" />;
+  if (!session || !location) return <SessionLost />;
 
   const spot = Spots[location][lang];
   const neck = location === 'NK';
@@ -63,19 +73,37 @@ export default function RecordScreen() {
 
   async function begin() {
     setFailed(false);
+    setStage('room');
     const id = ++countdownIdRef.current;
+    const roomDb = await rec.measureRoom(ROOM_CHECK_MS);
+    if (countdownIdRef.current !== id) return;
+    if (roomDb !== null && roomDb > NOISY_ROOM_DB) setStage('noisy');
+    else await countDownAndRecord(id);
+  }
+
+  async function countDownAndRecord(id: number) {
+    setStage('countdown');
+    say(t(location === 'NK' ? 'voice.neck' : 'voice.chest'), lang);
     for (let n = COUNTDOWN_S; n > 0; n--) {
       setCountdown(n);
       await sleep(1000);
       if (countdownIdRef.current !== id) return;
     }
     setCountdown(null);
+    stopSpeaking();
+    buzz();
+    await sleep(CUE_SETTLE_MS);
+    if (countdownIdRef.current !== id) return;
     if (!(await rec.start())) setFailed(true);
   }
 
   async function finish() {
     if (!recording || !location || !session) return;
+    buzz();
+    say(t('voice.done'), lang);
+    saveLocalFile(location, recording.uri);
     if (recording.issues.length > 0) {
+      countFailure(location);
       router.replace({ pathname: '/quality', params: { location, issue: recording.issues[0] } });
       return;
     }
@@ -90,8 +118,9 @@ export default function RecordScreen() {
       });
       saveRecording(response);
       router.replace({ pathname: '/quality', params: { location } });
-    } catch {
+    } catch (cause) {
       setUploading(false);
+      setUploadError(errorMessage(cause, lang));
       setFailed(true);
     }
   }
@@ -99,6 +128,7 @@ export default function RecordScreen() {
   function stopEverything() {
     countdownIdRef.current++;
     setCountdown(null);
+    stopSpeaking();
     if (isRecording) rec.cancel();
   }
 
@@ -151,7 +181,7 @@ export default function RecordScreen() {
     body = (
       <View style={styles.status}>
         <AppText size={17} weight="medium" color={Palette.onDark} align="center">
-          {rec.error ? t('record.failed') : t('genericError')}
+          {rec.error ? t('record.failed') : (uploadError ?? t('genericError'))}
         </AppText>
       </View>
     );
@@ -190,6 +220,40 @@ export default function RecordScreen() {
       </>
     );
     footer = <Button label={t('record.cancelOver')} variant="glass" onPress={startOver} />;
+  } else if (stage === 'room') {
+    body = (
+      <View style={styles.status}>
+        <ActivityIndicator color={Palette.onDark} size="large" />
+        <AppText size={17} weight="medium" color={Palette.onDark} align="center">
+          {t('record.roomCheck')}
+        </AppText>
+        <AppText size={15} leading={22} color="rgba(255, 255, 255, 0.7)" align="center">
+          {t('record.roomHint')}
+        </AppText>
+      </View>
+    );
+    footer = <Button label={t('cancel')} variant="glass" onPress={close} />;
+  } else if (stage === 'noisy') {
+    body = (
+      <View style={styles.status}>
+        <AppText size={24} weight="medium" color={Palette.onDark} align="center">
+          {t('record.noisyTitle')}
+        </AppText>
+        <AppText size={15} leading={22} color="rgba(255, 255, 255, 0.7)" align="center">
+          {t('record.noisyBody')}
+        </AppText>
+      </View>
+    );
+    footer = (
+      <>
+        <Button label={t('record.checkAgain')} variant="light" onPress={startOver} />
+        <Button
+          label={t('record.recordAnyway')}
+          variant="glass"
+          onPress={() => void countDownAndRecord(++countdownIdRef.current)}
+        />
+      </>
+    );
   } else {
     body = (
       <>

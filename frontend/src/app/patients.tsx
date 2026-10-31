@@ -1,26 +1,30 @@
-import { router, useFocusEffect } from 'expo-router';
+import { Redirect, router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { api } from '@/api/client';
+import { api, errorMessage, requiresLogin } from '@/api/client';
 import type { Patient } from '@/api/types';
+import { logOut } from '@/auth/phone-auth';
 import { AppText } from '@/components/app-text';
 import { Art } from '@/components/art';
 import { Button } from '@/components/button';
 import { IconTile } from '@/components/icon-tile';
 import { Screen } from '@/components/screen';
 import { FontFamily, Palette, Shadow } from '@/constants/theme';
+import { useSignedIn } from '@/state/auth';
 import { useScreening } from '@/state/screening';
 
 export default function PatientsScreen() {
-  const { t, lang } = useScreening();
+  const { t, lang, endSession } = useScreening();
+  const signedIn = useSignedIn();
   const [items, setItems] = useState<Patient[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const firstLoadRef = useRef(true);
 
   const load = useCallback(() => {
-    setFailed(false);
+    if (!signedIn) return;
+    setError(null);
     api
       .listPatients()
       .then((list) => {
@@ -29,10 +33,12 @@ export default function PatientsScreen() {
         firstLoadRef.current = false;
         setItems(list);
       })
-      .catch(() => setFailed(true));
-  }, []);
+      .catch((cause) => setError(errorMessage(cause, lang)));
+  }, [signedIn, lang]);
 
   useFocusEffect(load);
+
+  if (signedIn === false) return <Redirect href="/login" />;
 
   // There is no server search; the list is filtered on the device.
   const search = query.trim().toLocaleLowerCase();
@@ -90,7 +96,21 @@ export default function PatientsScreen() {
   return (
     <Screen
       title={t('patients.title')}
-      footer={<Button label={t('patients.add')} onPress={() => router.push('/consent')} />}>
+      footer={
+        <>
+          <Button label={t('patients.add')} onPress={() => router.push('/consent')} />
+          {requiresLogin && (
+            <Button
+              label={t('login.logout')}
+              variant="ghost"
+              onPress={() => {
+                endSession();
+                void logOut();
+              }}
+            />
+          )}
+        </>
+      }>
       <View style={styles.heading}>
         <AppText size={28} leading={34} weight="medium" tracking={-0.448}>
           {t('patients.heading')}
@@ -100,9 +120,11 @@ export default function PatientsScreen() {
         </AppText>
       </View>
 
-      {failed ? (
+      {error ? (
         <View style={styles.center}>
-          <AppText color={Palette.ink2}>{t('genericError')}</AppText>
+          <AppText color={Palette.ink2} align="center">
+            {error}
+          </AppText>
           <Button label={t('retry')} variant="ghost" onPress={load} />
         </View>
       ) : items === null ? (

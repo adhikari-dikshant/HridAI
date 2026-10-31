@@ -13,8 +13,9 @@
 - **Still open, needs the user:** Google's Generative AI health terms (23); legal review before real users (27).
 - **Deploy:** use `docs/DEPLOY.md`. It has not been run yet.
 - **Repo (`c:\wamp64\www\HridAi`)** contains: `README.md`, `heart-screening-context.html` (canonical cross-team context), `backend/` (this folder: AI entry files + `docs/`, `.env.example`, `.gitignore`, `README.md`).
-- `frontend/` (Expo app) is in the repo and follows the current contract: patients, `patient_id` + `symptoms`, `NK`, nested `analysis`. It still has no Firebase login, so it reaches only a backend with `AUTH_MODE=dev`, through `EXPO_PUBLIC_DEV_UID`.
-- Cloud resources (GCP project, Firebase, buckets): **not created yet** (status unknown, ask the user).
+- `frontend/` (Expo app) is in the repo and follows the current contract. Firebase phone login is in the code but not switched on: Firebase isn't on the project yet, and `frontend/google-services.json` is needed before any Android build.
+- **Live:** the real model runs on Cloud Run (`hridai-demo-2026`, `backend/deploy/demo.env.yaml`) with dev login and memory storage, so anyone with the URL can use it and a restart wipes data. `backend/deploy/prod.env.yaml` is set for this project and closes that.
+- Cloud resources: project `hridai-demo-2026`, Cloud Run and Artifact Registry exist. Firebase, Firestore and the buckets do not yet.
 - Model: **trained on Colab, `cardiophon-ft-0.1`, in `backend/models/` (gitignored), and wired in.** With `MOCK_INFERENCE=false` + `MOCK_QUALITY=false` the API runs ffmpeg decode, real quality checks and ONNX inference. Quality limits are set from CirCor only: 75% of CirCor test recordings pass, and `too_noisy` catches fan hum and voice in synthetic tests. They still need tuning on phone recordings. Firebase, Firestore and Gemini are still not built, so this runs only with `ENV=local|staging`. Test split, MV + AV, 129 patients: sensitivity 0.917, specificity 0.448, AUC 0.872, threshold 0.0165. Only 24 positives, and val AUC was 0.70, so treat these as rough. Backend preprocessing reproduces the Colab golden logit exactly. CirCor only: not valid for adults or phones.
 
 ## Next task
@@ -88,6 +89,18 @@ What the assistant did: read `heart-screening-context.html` in full (project spe
 No application code was written; the user asked for a plan only.
 
 ## Session log (newest first)
+
+### 2026-11-01 — Session 9 — health summary
+- Added `health_summary` to the analyze response, an additive contract change the user asked for. It's built from the patient snapshot on every read, so nothing new is stored and older completed screenings get it too. It never touches the label, and the model never sees BMI.
+- BMI uses WHO adult ranges, with no category under 18. A BMI outside 10–80 is hidden as a typing mistake. India often uses lower cut-offs, so a clinician should confirm which ranges to show.
+- Suggestions are fixed text, not Gemini. Chest pain or fainting puts a doctor first and drops the walking and weight tips. Wording and Hindi need clinical and native-speaker review.
+- The app shows a Health summary card on the result screen, including from history. Its mock has a shorter version of the rules.
+
+### 2026-11-01 — Session 8 — phone login and recording flow
+- Added Firebase phone login (`@react-native-firebase`), because the Firebase JS SDK flow needs a web reCAPTCHA. Phone numbers stay in Firebase Auth, never in Firestore, logs or Gemini; consent text, the HTML and SPEC now say so. No backend code or API change.
+- Added a 404 screen, session-lost screen, backend error messages, local playback, a move-on path after 2 failed tries, a 3-second room noise check (`NOISY_ROOM_DB` is a guess and only warns), vibration and voice cues, a pre-recording urgent warning and saved language. Reports stay hidden until the backend has that endpoint. Local recordings are deleted after analyze, on a new screening, on leaving and at app start.
+- Fixed a blocker: `microphonePermission: false` under `expo-image-picker` removed `RECORD_AUDIO` from the whole Android app.
+- Checked in a browser with a temporary fake recorder and a web login stand-in. A throwaway prebuild confirmed the Android config. Not tested: real SMS or Firebase login, a Gradle build, real mic, audible playback, vibration, spoken cues or the real noise level, because this PC has no Android SDK.
 
 ### 2026-10-31 — Session 7 — frontend moved to the current contract
 - Pulled `frontend/` and moved it to the v1 contract: types, client and mock, a new Patients screen, profile vs per-screening symptoms in the form, the neck step (light touch, skip, stop-if-dizzy, no "press" wording), per-patient history and delete, and `analysis` nested in `ScreeningDetail`. No backend code changed.

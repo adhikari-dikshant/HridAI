@@ -1,5 +1,5 @@
 import { requestRecordingPermissionsAsync } from 'expo-audio';
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { Location, Source } from '@/api/types';
@@ -11,9 +11,11 @@ import { IconTile } from '@/components/icon-tile';
 import { Note } from '@/components/note';
 import { Screen } from '@/components/screen';
 import { Segmented } from '@/components/segmented';
+import { SessionLost } from '@/components/session-lost';
 import { StepProgress } from '@/components/step-progress';
 import { Spots, isSpot } from '@/constants/chest-locations';
 import { Palette } from '@/constants/theme';
+import { useLeaveSpot } from '@/hooks/use-leave-spot';
 import type { StringKey } from '@/i18n/strings';
 import { hasAcceptedChest, useScreening } from '@/state/screening';
 
@@ -49,8 +51,9 @@ const ORDINALS: StringKey[] = ['guide.ordinal1', 'guide.ordinal2', 'guide.ordina
 export default function GuideScreen() {
   const { t, lang, session, source, setSource } = useScreening();
   const params = useLocalSearchParams<{ location?: string }>();
+  const leaveSpot = useLeaveSpot();
 
-  if (!session || !isSpot(params.location)) return <Redirect href="/" />;
+  if (!session || !isSpot(params.location)) return <SessionLost />;
 
   const location = params.location;
   const spot = Spots[location][lang];
@@ -80,7 +83,7 @@ export default function GuideScreen() {
             <Button
               label={t('guide.skipNeck')}
               variant="ghost"
-              onPress={() => router.push('/reports')}
+              onPress={() => leaveSpot('NK')}
             />
           )}
         </>

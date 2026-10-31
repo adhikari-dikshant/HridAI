@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { Redirect, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
@@ -13,6 +13,7 @@ import { Card } from '@/components/card';
 import { IconTile } from '@/components/icon-tile';
 import { Note } from '@/components/note';
 import { Screen } from '@/components/screen';
+import { SessionLost } from '@/components/session-lost';
 import { StepProgress } from '@/components/step-progress';
 import { Palette } from '@/constants/theme';
 import { useScreening } from '@/state/screening';
@@ -31,7 +32,7 @@ export default function ReportsScreen() {
   const { t, lang, session } = useScreening();
   const [reports, setReports] = useState<Report[]>([]);
 
-  if (!session) return <Redirect href="/" />;
+  if (!session) return <SessionLost />;
   const screeningId = session.screening_id;
   const reading = reports.some((r) => r.status === 'reading');
 

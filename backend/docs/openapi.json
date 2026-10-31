@@ -1125,6 +1125,9 @@
             "type": "array",
             "title": "Report Summaries"
           },
+          "health_summary": {
+            "$ref": "#/components/schemas/HealthSummary"
+          },
           "disclaimer": {
             "additionalProperties": {
               "type": "string"
@@ -1147,10 +1150,21 @@
           "result",
           "explanation",
           "report_summaries",
+          "health_summary",
           "disclaimer",
           "completed_at"
         ],
         "title": "AnalyzeResponse"
+      },
+      "BmiCategory": {
+        "type": "string",
+        "enum": [
+          "underweight",
+          "healthy",
+          "overweight",
+          "obese"
+        ],
+        "title": "BmiCategory"
       },
       "Body_add_recording_v1_screenings__screening_id__recordings_post": {
         "properties": {
@@ -1251,6 +1265,67 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HealthSummary": {
+        "properties": {
+          "bmi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bmi"
+          },
+          "bmi_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BmiCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "symptoms": {
+            "items": {
+              "$ref": "#/components/schemas/Symptom"
+            },
+            "type": "array",
+            "title": "Symptoms"
+          },
+          "known_conditions": {
+            "items": {
+              "$ref": "#/components/schemas/KnownCondition"
+            },
+            "type": "array",
+            "title": "Known Conditions"
+          },
+          "suggestions": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Lang"
+            },
+            "type": "object",
+            "title": "Suggestions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bmi",
+          "bmi_category",
+          "symptoms",
+          "known_conditions",
+          "suggestions"
+        ],
+        "title": "HealthSummary"
       },
       "KnownCondition": {
         "type": "string",

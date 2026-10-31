@@ -17,6 +17,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Palette } from '@/constants/theme';
+import { AuthProvider } from '@/state/auth';
 import { ScreeningProvider } from '@/state/screening';
 
 SplashScreen.preventAutoHideAsync();
@@ -45,13 +46,15 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={theme}>
-        <ScreeningProvider>
-          <AnimatedSplashOverlay />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="record" options={{ gestureEnabled: false }} />
-            <Stack.Screen name="analyzing" options={{ gestureEnabled: false }} />
-          </Stack>
-        </ScreeningProvider>
+        <AuthProvider>
+          <ScreeningProvider>
+            <AnimatedSplashOverlay />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="record" options={{ gestureEnabled: false }} />
+              <Stack.Screen name="analyzing" options={{ gestureEnabled: false }} />
+            </Stack>
+          </ScreeningProvider>
+        </AuthProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

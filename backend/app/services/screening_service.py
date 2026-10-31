@@ -21,6 +21,7 @@ from app.schemas import (
     Source,
 )
 from app.services.decode import to_wav
+from app.services.health_summary import build_health_summary
 from app.services.model import Classifier
 from app.services.quality import QualityChecker
 from app.services.repository import Repository, analysis_is_running
@@ -293,6 +294,10 @@ class ScreeningService:
             result=screening["result"],
             explanation=screening["explanation"],
             report_summaries=[],
+            health_summary=build_health_summary(
+                PatientSnapshot.model_validate(screening["patient"]),
+                screening["result"]["label"],
+            ),
             disclaimer=DISCLAIMER,
             completed_at=screening["completed_at"],
         )

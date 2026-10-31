@@ -43,6 +43,13 @@ class KnownCondition(StrEnum):
     other = "other"
 
 
+class BmiCategory(StrEnum):
+    underweight = "underweight"
+    healthy = "healthy"
+    overweight = "overweight"
+    obese = "obese"
+
+
 class Label(StrEnum):
     normal = "normal"
     needs_checkup = "needs_checkup"
@@ -207,12 +214,21 @@ class ReportSummary(BaseModel):
     summary_hi: str
 
 
+class HealthSummary(BaseModel):
+    bmi: float | None
+    bmi_category: BmiCategory | None
+    symptoms: list[Symptom]
+    known_conditions: list[KnownCondition]
+    suggestions: dict[Lang, list[str]]
+
+
 class AnalyzeResponse(BaseModel):
     screening_id: str
     status: ScreeningStatus
     result: ScreeningResult
     explanation: dict[Lang, str]
     report_summaries: list[ReportSummary]
+    health_summary: HealthSummary
     disclaimer: dict[Lang, str]
     completed_at: UtcTimestamp
 

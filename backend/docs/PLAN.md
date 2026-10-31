@@ -193,7 +193,7 @@ Follow `DEPLOY.md`.
 ### B3 — Real auth and persistence (≈ 1 day)
 
 - [x] Firebase Admin init with Application Default Credentials everywhere (`gcloud auth application-default login` locally; no `sa.json`)
-- [x] `verify_id_token` (accept anonymous users; `check_revoked=False` for speed); `AUTH_MODE=dev` refused when `ENV=prod`
+- [x] `verify_id_token` (phone login; `check_revoked=False` for speed); `AUTH_MODE=dev` refused when `ENV=prod`
 - [x] Analysis lock: set `analyzing` in a Firestore transaction with `analysis_started_at`; treat it as expired after 90 s so a crash or timeout can't block retries; a live lock → 409 `analysis_in_progress`
 - [x] `FirestoreRepository` matching SPEC §3 collections (`patients`, `screenings`, sub-collections `recordings`, `reports`); list queries by `owner_uid` + `created_at desc`, `owner_uid` + `patient_id` + `created_at desc` and `owner_uid` + `last_activity_at desc` (create composite indexes; commit `firestore.indexes.json`)
 - [x] `GCSBlobStore`: upload original + converted WAV, delete prefix, signed URL (15 min) for heatmaps (B9 only; add the token-creator role then)
@@ -201,7 +201,7 @@ Follow `DEPLOY.md`.
 - [x] Delete cascades: Firestore sub-collections + `screenings/{id}/` storage prefix (soft delete must be off, or audio stays recoverable for 7 days)
 - [x] Same API test-suite runs against memory backend in CI; a manual/opt-in test against real Firebase (`pytest -m cloud`)
 
-**Accept:** app dev's anonymous Firebase token works end-to-end on Cloud Run; data visible in Firestore console; delete leaves nothing behind.
+**Accept:** a phone login token works end-to-end on Cloud Run; data visible in Firestore console; delete leaves nothing behind.
 
 ### B4 — Audio pipeline and quality check (≈ 1.5 days)
 
@@ -320,6 +320,6 @@ Rule: `pytest` must pass with **no network and no credentials**.
 | ID format | prefix + 10 chars base32 lowercase random (`scr_8f2k1xq0ab`) |
 | `GET /v1/screenings` pagination | `limit` 1–50 (default 20), no cursor in MVP |
 | Model hosting | Baked into the container (no Vertex endpoint) |
-| Audio retention | 30-day bucket lifecycle rule as a backstop, which also covers users who lose an anonymous uid |
+| Audio retention | 30-day bucket lifecycle rule as a backstop, which also covers abandoned accounts |
 | Locations in MVP | Required MV + AV, optional PV + TV (backend accepts all 4) |
 

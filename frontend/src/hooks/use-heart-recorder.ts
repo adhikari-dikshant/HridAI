@@ -64,12 +64,19 @@ export function useHeartRecorder({
   // Only true while buffers are also being written to the file.
   const activeRef = useRef(false);
   const totalsRef = useRef({ samples: 0, clipped: 0 });
+  // Set only while the room is being measured, before any file is written.
+  const roomRef = useRef<{ sum: number; buffers: number } | null>(null);
 
   const { stream } = useAudioStream({
     sampleRate: SAMPLE_RATE,
     channels: 1,
     encoding: 'int16',
     onBuffer: (buffer) => {
+      if (roomRef.current) {
+        roomRef.current.sum += measure(buffer.data).level.db;
+        roomRef.current.buffers += 1;
+        return;
+      }
       if (!activeRef.current) return;
 
       const stats = measure(buffer.data);
@@ -95,6 +102,24 @@ export function useHeartRecorder({
     const response = await requestRecordingPermissionsAsync();
     setPermission(response);
     return response.granted;
+  }
+
+  /** Average mic level in dBFS over `ms`, with nothing saved. Null when it can't be measured. */
+  async function measureRoom(ms: number) {
+    if (activeRef.current || !(await requestPermission())) return null;
+
+    try {
+      roomRef.current = { sum: 0, buffers: 0 };
+      await stream.start();
+      await new Promise((resolve) => setTimeout(resolve, ms));
+      stream.stop();
+      const { sum, buffers } = roomRef.current;
+      return buffers > 0 ? sum / buffers : null;
+    } catch {
+      return null;
+    } finally {
+      roomRef.current = null;
+    }
   }
 
   async function start() {
@@ -151,7 +176,7 @@ export function useHeartRecorder({
     }
   }
 
-  /** Stops without producing a result. The partial file stays in the cache directory. */
+  /** Stops without producing a result. The partial file goes with the screening's other files. */
   function cancel() {
     activeRef.current = false;
     stream.stop();
@@ -171,6 +196,7 @@ export function useHeartRecorder({
     recording,
     error,
     requestPermission,
+    measureRoom,
     start,
     stop,
     cancel,

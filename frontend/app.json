@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.nipl.HridAI"
+      "package": "com.nipl.HridAI",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "server",
@@ -45,11 +46,12 @@
         "expo-image-picker",
         {
           "cameraPermission": "HridAI uses the camera to photograph old medical reports for a summary.",
-          "photosPermission": false,
-          "microphonePermission": false
+          "photosPermission": false
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
     ],
     "experiments": {
       "typedRoutes": true,

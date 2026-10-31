@@ -87,7 +87,7 @@ firebase projects:addfirebase $P
 
 Then, in the [Firebase console](https://console.firebase.google.com/):
 
-1. **Authentication → Sign-in method:** enable **Anonymous**.
+1. **Authentication → Sign-in method:** enable **Phone**, and add test numbers under *Phone numbers for testing*. For real SMS, allow India in the SMS region policy, because new projects allow no regions.
 2. **Project settings → Your apps:** add the app and send the config to the app developer for `EXPO_PUBLIC_FIREBASE_*`.
 
 ## 4. Create Firestore and storage
@@ -211,13 +211,7 @@ Confirm `/healthz` for review finding 2. A Google-styled 404 means the path is r
 curl.exe -i "$URL/healthz"
 ```
 
-Test real auth. The Web API key is in Firebase project settings. This creates one anonymous test user.
-
-```powershell
-$KEY = "<firebase-web-api-key>"
-$TOKEN = (Invoke-RestMethod -Method Post -ContentType "application/json" -Body '{"returnSecureToken":true}' -Uri "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$KEY").idToken
-Invoke-RestMethod -Headers @{ Authorization = "Bearer $TOKEN" } "$URL/v1/screenings"
-```
+Test real auth by logging in from the app with a Firebase test number.
 
 Then confirm these before you share the URL:
 

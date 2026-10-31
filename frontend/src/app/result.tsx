@@ -2,12 +2,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Share, StyleSheet, View } from 'react-native';
 
-import { api } from '@/api/client';
+import { api, errorMessage } from '@/api/client';
 import type { AnalyzeResponse, Label, Lang } from '@/api/types';
 import { AppText } from '@/components/app-text';
 import { Art, type ArtworkName } from '@/components/art';
 import { Button } from '@/components/button';
 import { Card, CardRow } from '@/components/card';
+import { HealthSummaryCard } from '@/components/health-summary';
 import { IconTile } from '@/components/icon-tile';
 import { Note } from '@/components/note';
 import { Screen } from '@/components/screen';
@@ -19,7 +20,10 @@ import { Palette } from '@/constants/theme';
 import { translate, type StringKey } from '@/i18n/strings';
 import { useScreening } from '@/state/screening';
 
-type ResultView = Pick<AnalyzeResponse, 'result' | 'explanation' | 'disclaimer' | 'completed_at'>;
+type ResultView = Pick<
+  AnalyzeResponse,
+  'result' | 'explanation' | 'health_summary' | 'disclaimer' | 'completed_at'
+>;
 
 // Above this, a chest spot is flagged as having an unusual sound.
 const SPOT_FLAG_THRESHOLD = 0.5;
@@ -44,6 +48,7 @@ export default function ResultScreen() {
   const [loaded, setLoaded] = useState<ResultView | null>(null);
   const [loadedLabel, setLoadedLabel] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [explanationLang, setExplanationLang] = useState<Lang>(lang);
 
   useEffect(() => {
@@ -61,11 +66,15 @@ export default function ResultScreen() {
           .then((patient) => !cancelled && setLoadedLabel(patient.label))
           .catch(() => {});
       })
-      .catch(() => !cancelled && setLoadFailed(true));
+      .catch((cause) => {
+        if (cancelled) return;
+        setLoadFailed(true);
+        setLoadError(errorMessage(cause, lang));
+      });
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, lang]);
 
   const view: ResultView | null = fromHistory ? loaded : latest;
   const patientLabel = fromHistory ? loadedLabel : (session?.patient.label ?? null);
@@ -84,7 +93,7 @@ export default function ResultScreen() {
             <ActivityIndicator color={Palette.brand} />
           ) : (
             <AppText color={Palette.ink2} align="center">
-              {t('result.notReady')}
+              {loadError ?? t('result.notReady')}
             </AppText>
           )}
         </View>
@@ -254,6 +263,8 @@ export default function ResultScreen() {
           })}
         </Card>
       )}
+
+      <HealthSummaryCard summary={view.health_summary} />
 
       {label === 'unclear' ? (
         <Note tone="alert" text={t('result.urgent')} />
