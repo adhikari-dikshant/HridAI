@@ -1,0 +1,739 @@
+<title>Heart Screening Dev Context</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: single reading column with a jump-to index; reference doc, not a landing page */
+:root {
+  --bg: #fbfbfc; --surface: #f1f2f5; --fg: #1b1d23; --muted: #5b606d; --line: #dfe1e7;
+  --accent: #b4233c; --accent-soft: #fbe9ec;
+  --ok: #1f7a4d; --warn: #9a5b00; --info: #2a5db0;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14161b; --surface: #1d2027; --fg: #e7e8ec; --muted: #a0a5b2; --line: #2f333d;
+  --accent: #f0687e; --accent-soft: #3a1c23; --ok: #5cc28d; --warn: #e3a64a; --info: #7aa6f0; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #14161b; --surface: #1d2027; --fg: #e7e8ec; --muted: #a0a5b2; --line: #2f333d;
+  --accent: #f0687e; --accent-soft: #3a1c23; --ok: #5cc28d; --warn: #e3a64a; --info: #7aa6f0; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 16px/1.65 var(--sans); }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; text-wrap: balance; font-weight: 600; }
+h2 { font-size: 1.35rem; margin: 56px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); text-wrap: balance; font-weight: 600; }
+h2 .n { color: var(--accent); font-family: var(--mono); font-size: .95rem; margin-right: 8px; }
+h3 { font-size: 1.05rem; margin: 28px 0 8px; font-weight: 600; }
+p, li { max-width: 68ch; }
+a { color: var(--info); }
+code { font-family: var(--mono); font-size: .88em; background: var(--surface); padding: 1px 5px; border-radius: 4px; }
+pre { font-family: var(--mono); font-size: .82rem; line-height: 1.55; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+.lede { color: var(--muted); font-size: 1.05rem; margin: 0 0 20px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 24px; }
+.chip { font: 500 .78rem/1 var(--mono); padding: 6px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.chip.hot { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.note { background: var(--accent-soft); border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+.note strong { color: var(--accent); }
+.tbl { overflow-x: auto; margin: 12px 0; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+td code { white-space: nowrap; }
+.toc { columns: 2 220px; gap: 24px; padding: 14px 18px; background: var(--surface); border-radius: 8px; font-size: .92rem; }
+.toc a { display: block; color: var(--fg); text-decoration: none; padding: 2px 0; break-inside: avoid; }
+.toc a:hover, .toc a:focus-visible { color: var(--accent); }
+.verb { font: 600 .75rem var(--mono); padding: 2px 6px; border-radius: 4px; background: var(--fg); color: var(--bg); margin-right: 6px; }
+.ep { margin: 28px 0 8px; font-family: var(--mono); font-size: .95rem; }
+.ok { color: var(--ok); font-weight: 500; } .warn { color: var(--warn); font-weight: 500; } .muted { color: var(--muted); }
+ul.check { list-style: none; padding-left: 0; } ul.check li::before { content: "☐ "; color: var(--muted); }
+pre.mermaid { background: var(--surface); text-align: center; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+<h1>Heart Screening App: Dev Context</h1>
+<p class="lede">Single source of truth for the backend, ML and React Native developers. If something here conflicts with code or chat, this page wins until it is updated.</p>
+<div class="meta">
+  <span class="chip hot">ABC: Aravali Build Championship · GDG Udaipur</span>
+  <span class="chip">Status: pre-build</span>
+  <span class="chip">API v1</span>
+  <span class="chip">Last updated: 31 Oct 2026</span>
+</div>
+
+<nav class="toc" aria-label="Contents">
+  <a href="#overview">1. Overview and positioning</a>
+  <a href="#team">2. Team and ownership</a>
+  <a href="#scope">3. Scope: MVP vs stretch</a>
+  <a href="#arch">4. Architecture</a>
+  <a href="#stack">5. Tech stack</a>
+  <a href="#flow">6. User flow and screens</a>
+  <a href="#recording">7. Recording spec</a>
+  <a href="#api">8. API contract</a>
+  <a href="#data">9. Data model and storage</a>
+  <a href="#pipeline">10. Audio pipeline</a>
+  <a href="#ml">11. ML model and training</a>
+  <a href="#gemini">12. Gemini usage</a>
+  <a href="#result">13. Result logic and copy</a>
+  <a href="#repo">14. Repo layout and setup</a>
+  <a href="#deploy">15. Deployment</a>
+  <a href="#privacy">16. Privacy, safety, legal</a>
+  <a href="#demo">17. Demo plan</a>
+  <a href="#plan">18. Build plan and checklist</a>
+  <a href="#open">19. Open decisions</a>
+  <a href="#glossary">20. Glossary</a>
+  <a href="#refs">21. References</a>
+</nav>
+
+<!-- ============================== -->
+<h2 id="overview"><span class="n">01</span>Overview and positioning</h2>
+<p>A mobile app that records heart sounds through a phone mic (or a ₹500 stethoscope + collar-mic attachment), checks recording quality, and uses AI to classify the heartbeat as <b>Normal</b>, <b>Needs check-up</b> or <b>Recording unclear</b>. Gemini explains the result in plain Hindi and English. The user can share the result with a doctor.</p>
+<div class="note"><strong>Rule #1:</strong> This is a <b>screening tool, not a diagnosis</b>. Never use the words "diagnose", "detects disease" or "you have X" in UI, API messages, prompts or the pitch. Say "screening", "pre-check", "may need a check-up".</div>
+<ul>
+  <li><b>Working name:</b> not final. Shortlist: <b>HridAI</b> (recommended), Dhadkan, Spandan, LubDub. The submitted deck currently says "HeartSense". Repo code-name: <code>heartscreen</code>.</li>
+  <li><b>Problem:</b> Heart disease is the leading cause of death in India. Rural areas have very few cardiologists, and AI digital stethoscopes cost ₹20,000+.</li>
+  <li><b>Target users:</b> ASHA workers, PHCs and rural clinics running screening camps, families monitoring high-risk patients, doctors doing telemedicine.</li>
+  <li><b>Hackathon rule that matters:</b> Using Google / Google Cloud tech and AI earns bonus marks. That is why we use Gemini, Firebase, Cloud Run and Vertex AI.</li>
+  <li><b>Competitor reference:</b> Eko (US) has FDA-cleared murmur detection (87% sensitivity / 87% specificity) on its own digital stethoscope. Our angle: affordable, phone-first, Indian languages.</li>
+</ul>
+
+<!-- ============================== -->
+<h2 id="team"><span class="n">02</span>Team and ownership</h2>
+<div class="tbl"><table>
+<tr><th>Person</th><th>Owns</th><th>Main deliverables</th></tr>
+<tr><td>Pranav Soni</td><td>Backend, audio pipeline, ML, deployment</td><td>FastAPI service, quality check, model training + export, Gemini integration, Cloud Run deploy</td></tr>
+<tr><td>Friend (React Native)</td><td>Mobile app</td><td>All screens, recording, upload, result UI, Firebase Auth client</td></tr>
+<tr><td>[Member 3]</td><td>TBD (suggested: design + pitch)</td><td>UI design, chest placement illustration, deck, demo video</td></tr>
+<tr><td>[Member 4]</td><td>TBD (suggested: data + testing)</td><td>Dataset prep, test recordings, QA, results table</td></tr>
+</table></div>
+<p class="muted">Shared: API contract (section 8). Any change to request/response shapes needs a message in the team group before merging.</p>
+
+<!-- ============================== -->
+<h2 id="scope"><span class="n">03</span>Scope: MVP vs stretch</h2>
+<h3>MVP (must ship for demo)</h3>
+<ul>
+  <li>Consent + patient info form (age, sex, height, weight)</li>
+  <li>Guided recording at 2 chest locations (mitral + aortic), 15 s each</li>
+  <li>Server-side quality check with "re-record" feedback</li>
+  <li>Classification: Normal / Needs check-up / Recording unclear + confidence</li>
+  <li>Heart rate (bpm)</li>
+  <li>Gemini explanation in Hindi + English</li>
+  <li>Result screen with disclaimer; history list</li>
+  <li>Deployed backend on Cloud Run</li>
+</ul>
+<h3>Stretch (only if MVP is done)</h3>
+<ul>
+  <li>All 4 chest locations</li>
+  <li>Grad-CAM heatmap image on result screen</li>
+  <li>Upload old reports (image/PDF) → Gemini summary shown with result</li>
+  <li>Share result as PDF / link with doctor</li>
+  <li>Waveform playback with S1/S2 markers</li>
+</ul>
+<h3>Out of scope</h3>
+<ul><li>Murmur type classification, ECG, on-device/offline model, doctor dashboard, clinical validation. These go in the "future scope" slide only.</li></ul>
+
+<!-- ============================== -->
+<h2 id="arch"><span class="n">04</span>Architecture</h2>
+<pre class="mermaid">
+flowchart TD
+  A[RN app: consent + patient info] --> B[RN app: guided recording per chest spot]
+  B -->|multipart upload| C[FastAPI on Cloud Run]
+  C --> D{Quality check}
+  D -->|rejected| B
+  D -->|accepted| E[DSP preprocess: resample, bandpass, normalize]
+  E --> F[5 s windows to log-mel spectrograms]
+  F --> G[Audio model: fine-tuned CardioPHON / CNN]
+  A -.patient data.-> H
+  G --> H[Fusion: audio score + age, sex, height, weight]
+  H --> I[Result: normal / needs check-up / unclear]
+  I --> J[Gemini: explanation in Hindi + English]
+  J --> K[RN app: result screen, share, history]
+  C <--> L[(Firestore + Cloud Storage)]
+</pre>
+<h3>Key design decisions</h3>
+<ul>
+  <li><b>No AI "enhancement" of audio.</b> Denoising models can erase murmurs (murmurs look like noise) or invent beats. We use classical DSP only, and reject bad audio instead of fixing it.</li>
+  <li><b>Same preprocessing in training and inference.</b> One shared Python module (<code>audio.py</code>) is imported by both the training code and the API.</li>
+  <li><b>Gemini never classifies.</b> It only explains a result that our model already produced, and summarizes uploaded reports.</li>
+  <li><b>Backend owns all writes</b> to Firestore and Storage. The app only talks to our API (simpler security rules).</li>
+  <li><b>Synchronous analyze call</b> (a few seconds). No queues or workers for the hackathon.</li>
+</ul>
+
+<!-- ============================== -->
+<h2 id="stack"><span class="n">05</span>Tech stack</h2>
+<div class="tbl"><table>
+<tr><th>Layer</th><th>Choice</th><th>Notes</th></tr>
+<tr><td>Mobile</td><td>React Native + Expo + TypeScript</td><td><code>expo-audio</code> for recording, <code>expo-document-picker</code> / <code>expo-image-picker</code> for reports</td></tr>
+<tr><td>Auth</td><td>Firebase Auth (anonymous sign-in for demo)</td><td>App sends Firebase ID token as Bearer token</td></tr>
+<tr><td>Backend</td><td>Python 3.11, FastAPI, Uvicorn</td><td><code>python-multipart</code>, <code>pydantic-settings</code></td></tr>
+<tr><td>Audio</td><td>ffmpeg, librosa, scipy, soundfile, numpy</td><td>ffmpeg installed in Docker image</td></tr>
+<tr><td>ML</td><td>PyTorch (CPU at inference)</td><td>CardioPHON pretrained model if usable, else small CNN baseline</td></tr>
+<tr><td>LLM</td><td>Gemini API (<code>google-genai</code> SDK)</td><td>Flash-class model; pin exact model ID in config</td></tr>
+<tr><td>Database</td><td>Cloud Firestore</td><td>Via <code>firebase-admin</code></td></tr>
+<tr><td>Files</td><td>Cloud Storage</td><td>Audio + reports</td></tr>
+<tr><td>Hosting</td><td>Google Cloud Run (asia-south1)</td><td>Model baked into container or loaded from GCS at startup</td></tr>
+<tr><td>Training</td><td>Colab / Vertex AI Workbench</td><td>Vertex AI endpoint optional; in-container model is fine</td></tr>
+<tr><td>CI/CD</td><td>Cloud Build or GitHub Actions</td><td>Nice to have</td></tr>
+</table></div>
+
+<!-- ============================== -->
+<h2 id="flow"><span class="n">06</span>User flow and screens</h2>
+<div class="tbl"><table>
+<tr><th>#</th><th>Screen</th><th>What it does</th><th>API</th></tr>
+<tr><td>1</td><td>Welcome</td><td>Pick language (Hindi / English). Anonymous Firebase sign-in in background.</td><td>none</td></tr>
+<tr><td>2</td><td>Consent</td><td>Screening disclaimer + data use. Checkbox required to continue.</td><td>none</td></tr>
+<tr><td>3</td><td>Patient info</td><td>Age, sex, height, weight (required: age, sex). Optional symptoms and known conditions.</td><td><code>POST /v1/screenings</code></td></tr>
+<tr><td>4</td><td>Placement guide</td><td>Chest diagram showing the current spot (order: MV → AV → PV → TV). Tips: quiet room, sit still, no talking, phone bottom pressed to bare skin.</td><td>none</td></tr>
+<tr><td>5</td><td>Record</td><td>3 s countdown, 15 s recording, live input level meter, timer, cancel.</td><td>none</td></tr>
+<tr><td>6</td><td>Quality feedback</td><td>Upload, then show accepted ✓ + bpm, or the reason + "Record again". Next spot or continue.</td><td><code>POST /v1/screenings/{id}/recordings</code></td></tr>
+<tr><td>7</td><td>Reports (optional)</td><td>Upload old report photo/PDF. Skippable.</td><td><code>POST /v1/screenings/{id}/reports</code></td></tr>
+<tr><td>8</td><td>Analyzing</td><td>Loader, 5–15 s. Show a reassuring line, not a medical one.</td><td><code>POST /v1/screenings/{id}/analyze</code></td></tr>
+<tr><td>9</td><td>Result</td><td>Label badge, bpm, confidence, explanation (language toggle), disclaimer, share button, heatmap (stretch).</td><td>response of analyze</td></tr>
+<tr><td>10</td><td>History</td><td>List of past screenings with date + label. Delete option.</td><td><code>GET /v1/screenings</code>, <code>DELETE</code></td></tr>
+</table></div>
+<p>Minimum to analyze: <b>1 accepted recording</b>. App should push for 2 (MV + AV) in MVP.</p>
+
+<!-- ============================== -->
+<h2 id="recording"><span class="n">07</span>Recording spec (frontend)</h2>
+<ul>
+  <li><b>Format:</b> record with <code>expo-audio</code> high-quality preset: <b>m4a / AAC, mono, 44.1 kHz</b>. Android cannot record WAV natively, so we keep m4a on both platforms. Backend converts with ffmpeg.</li>
+  <li><b>Duration:</b> target 15 s, hard minimum 8 s, max 30 s. Auto-stop at 15 s.</li>
+  <li><b>File size limit:</b> 5 MB per recording.</li>
+  <li><b>Locations</b> (same codes as the CirCor dataset):
+    <div class="tbl"><table>
+    <tr><th>Code</th><th>Name</th><th>Where on chest</th></tr>
+    <tr><td><code>MV</code></td><td>Mitral</td><td>Left side, 5th rib space, below the nipple line (apex)</td></tr>
+    <tr><td><code>AV</code></td><td>Aortic</td><td>Right of breastbone, 2nd rib space</td></tr>
+    <tr><td><code>PV</code></td><td>Pulmonic</td><td>Left of breastbone, 2nd rib space</td></tr>
+    <tr><td><code>TV</code></td><td>Tricuspid</td><td>Left lower edge of breastbone, 4th–5th rib space</td></tr>
+    </table></div>
+  </li>
+  <li><b>Source</b> field: <code>phone_mic</code> or <code>stethoscope_mic</code> (user picks once on the placement screen).</li>
+  <li><b>User instructions</b> (show as 4 short tips with icons): sit still and breathe normally · switch off fan/AC/TV · press the phone's bottom (mic side) firmly on bare skin · don't talk during recording.</li>
+  <li>Ask mic permission on screen 4, not at app launch. Handle "denied" with a settings link.</li>
+</ul>
+
+<!-- ============================== -->
+<h2 id="api"><span class="n">08</span>API contract (v1)</h2>
+<h3>Conventions</h3>
+<ul>
+  <li>Base URL: <code>EXPO_PUBLIC_API_BASE_URL</code> (Cloud Run URL), all routes under <code>/v1</code>.</li>
+  <li>Auth header on every call except <code>/healthz</code>: <code>Authorization: Bearer &lt;Firebase ID token&gt;</code>. Backend verifies with <code>firebase_admin.auth.verify_id_token</code>. Users only see their own screenings.</li>
+  <li>JSON keys in <code>snake_case</code>. Timestamps ISO 8601 UTC. IDs are strings.</li>
+  <li>Language: <code>"en"</code> or <code>"hi"</code>. User-facing messages are returned in both (<code>message_en</code>, <code>message_hi</code>).</li>
+  <li><b>Mock mode:</b> backend env <code>MOCK_INFERENCE=true</code> returns fixed realistic results, so the app can be built before the model is ready.</li>
+</ul>
+
+<h3>Error format</h3>
+<pre><code>{
+  "error": {
+    "code": "screening_not_found",
+    "message_en": "This screening does not exist.",
+    "message_hi": "यह जाँच मौजूद नहीं है।"
+  }
+}</code></pre>
+<div class="tbl"><table>
+<tr><th>Status</th><th>When</th></tr>
+<tr><td>400</td><td>Bad input (missing field, invalid location code)</td></tr>
+<tr><td>401</td><td>Missing / invalid Firebase token</td></tr>
+<tr><td>404</td><td>Screening not found or not yours</td></tr>
+<tr><td>409</td><td>Wrong state (e.g. analyze with no accepted recording)</td></tr>
+<tr><td>413</td><td>File too large</td></tr>
+<tr><td>415</td><td>Unsupported file type</td></tr>
+<tr><td>500</td><td>Server error (log has request id)</td></tr>
+</table></div>
+<p class="muted">A recording that fails the quality check is <b>not</b> an error. It returns 200 with <code>"accepted": false</code>.</p>
+
+<p class="ep"><span class="verb">GET</span>/healthz</p>
+<pre><code>{ "status": "ok", "model_version": "cardiophon-ft-0.1", "mock": false }</code></pre>
+
+<p class="ep"><span class="verb">POST</span>/v1/screenings</p>
+<p>Creates a screening with patient info and consent.</p>
+<pre><code>// request
+{
+  "language": "hi",
+  "consent": { "accepted": true, "version": "v1" },
+  "patient": {
+    "age_years": 34,                 // required, 0-110
+    "sex": "male",                   // required: male | female | other
+    "height_cm": 172,                // optional
+    "weight_kg": 70,                 // optional
+    "symptoms": ["breathlessness"],  // optional: chest_pain | breathlessness | palpitations | fatigue | fainting | swelling
+    "known_conditions": []           // optional: hypertension | diabetes | known_heart_disease | other
+  }
+}
+
+// 201 response
+{
+  "screening_id": "scr_8f2k1x",
+  "status": "awaiting_recordings",
+  "required_locations": ["MV", "AV"],
+  "optional_locations": ["PV", "TV"],
+  "created_at": "2026-11-02T10:15:00Z"
+}</code></pre>
+
+<p class="ep"><span class="verb">POST</span>/v1/screenings/{screening_id}/recordings</p>
+<p><code>multipart/form-data</code>. Re-uploading the same location replaces the previous recording for that location.</p>
+<pre><code>// form fields
+file          (binary, audio/m4a | audio/mp4 | audio/x-m4a | audio/wav, max 5 MB)
+location      MV | AV | PV | TV
+source        phone_mic | stethoscope_mic
+duration_ms   15000
+platform      ios | android
+
+// 200 response: accepted
+{
+  "recording_id": "rec_31ab",
+  "location": "MV",
+  "accepted": true,
+  "quality": { "score": 0.82, "duration_s": 14.6, "heart_rate_bpm": 78, "issues": [] },
+  "screening_status": "ready"
+}
+
+// 200 response: rejected
+{
+  "recording_id": "rec_31ac",
+  "location": "AV",
+  "accepted": false,
+  "quality": { "score": 0.21, "duration_s": 14.9, "heart_rate_bpm": null, "issues": ["too_noisy"] },
+  "message_en": "Too much background noise. Turn off the fan and record again.",
+  "message_hi": "पीछे की आवाज़ बहुत ज़्यादा है। पंखा बंद करके दोबारा रिकॉर्ड करें।",
+  "screening_status": "awaiting_recordings"
+}</code></pre>
+<div class="tbl"><table>
+<tr><th>Issue code</th><th>Meaning</th><th>Message to user (EN)</th></tr>
+<tr><td><code>too_short</code></td><td>Under 8 s after trimming</td><td>Recording was too short. Hold still for the full 15 seconds.</td></tr>
+<tr><td><code>too_quiet</code></td><td>Signal level below floor</td><td>Heartbeat was too faint. Press the phone more firmly on bare skin.</td></tr>
+<tr><td><code>clipping</code></td><td>Signal saturated</td><td>Sound was distorted. Hold the phone steady without rubbing.</td></tr>
+<tr><td><code>too_noisy</code></td><td>Too much energy outside heart band</td><td>Too much background noise. Turn off the fan and record again.</td></tr>
+<tr><td><code>no_heartbeat_detected</code></td><td>No periodic beat found</td><td>We couldn't hear a heartbeat. Check the position on the chest guide.</td></tr>
+<tr><td><code>heart_rate_out_of_range</code></td><td>Estimated rate outside 40–180 bpm</td><td>Reading was unclear. Please record again.</td></tr>
+</table></div>
+
+<p class="ep"><span class="verb">POST</span>/v1/screenings/{screening_id}/reports <span class="muted">(stretch)</span></p>
+<pre><code>// multipart: file (image/jpeg | image/png | application/pdf, max 10 MB)
+// 200 response
+{
+  "report_id": "rep_77c",
+  "summary_en": "ECG report from March 2025 noted normal sinus rhythm.",
+  "summary_hi": "मार्च 2025 की ECG रिपोर्ट में सामान्य हृदय गति बताई गई है।"
+}</code></pre>
+<p class="muted">Upload before calling analyze so the summary is included in the explanation. Reports are never used by the classifier.</p>
+
+<p class="ep"><span class="verb">POST</span>/v1/screenings/{screening_id}/analyze</p>
+<p>No body. Runs model + Gemini. Needs at least 1 accepted recording (else 409 <code>no_accepted_recordings</code>). Timeout on the app side: 45 s.</p>
+<pre><code>// 200 response
+{
+  "screening_id": "scr_8f2k1x",
+  "status": "completed",
+  "result": {
+    "label": "needs_checkup",              // normal | needs_checkup | unclear
+    "confidence": 0.81,                    // confidence in the label, 0-1
+    "abnormal_probability": 0.81,          // fused model output, 0-1
+    "heart_rate_bpm": 76,
+    "per_location": [
+      { "location": "MV", "abnormal_probability": 0.81, "quality_score": 0.82, "heatmap_url": null },
+      { "location": "AV", "abnormal_probability": 0.44, "quality_score": 0.77, "heatmap_url": null }
+    ],
+    "used_patient_data": true,
+    "model_version": "cardiophon-ft-0.1"
+  },
+  "explanation": {
+    "en": "The recording from the left side of your chest had a sound pattern that is sometimes seen with heart murmurs. This is not a diagnosis. Please visit a doctor for a proper check-up.",
+    "hi": "आपकी छाती के बाईं ओर की रिकॉर्डिंग में ऐसी आवाज़ मिली जो कभी-कभी हार्ट मर्मर में होती है। यह निदान नहीं है। कृपया सही जाँच के लिए डॉक्टर से मिलें।"
+  },
+  "report_summaries": [],
+  "disclaimer": {
+    "en": "This is an AI screening tool, not a medical diagnosis. Always consult a doctor.",
+    "hi": "यह एक AI स्क्रीनिंग टूल है, मेडिकल निदान नहीं। हमेशा डॉक्टर से सलाह लें।"
+  },
+  "completed_at": "2026-11-02T10:18:40Z"
+}</code></pre>
+
+<p class="ep"><span class="verb">GET</span>/v1/screenings/{screening_id}</p>
+<p>Returns the full screening: patient, recordings (without audio bytes), status, and the analyze response if completed.</p>
+
+<p class="ep"><span class="verb">GET</span>/v1/screenings?limit=20</p>
+<pre><code>{ "items": [ { "screening_id": "scr_8f2k1x", "created_at": "...", "status": "completed", "label": "needs_checkup" } ] }</code></pre>
+
+<p class="ep"><span class="verb">DELETE</span>/v1/screenings/{screening_id}</p>
+<p>Deletes the screening, its recordings and reports (Firestore + Storage). Returns 204.</p>
+
+<h3>Screening status values</h3>
+<p><code>awaiting_recordings</code> → <code>ready</code> (≥1 accepted) → <code>analyzing</code> → <code>completed</code> | <code>failed</code></p>
+
+<h3>Shared TypeScript types (copy into app)</h3>
+<pre><code>export type Lang = "en" | "hi";
+export type Location = "MV" | "AV" | "PV" | "TV";
+export type Label = "normal" | "needs_checkup" | "unclear";
+export type QualityIssue = "too_short" | "too_quiet" | "clipping" | "too_noisy"
+  | "no_heartbeat_detected" | "heart_rate_out_of_range";
+
+export interface Quality { score: number; duration_s: number; heart_rate_bpm: number | null; issues: QualityIssue[]; }
+export interface RecordingResponse {
+  recording_id: string; location: Location; accepted: boolean; quality: Quality;
+  message_en?: string; message_hi?: string; screening_status: string;
+}
+export interface AnalyzeResponse {
+  screening_id: string; status: "completed" | "failed";
+  result: {
+    label: Label; confidence: number; abnormal_probability: number; heart_rate_bpm: number | null;
+    per_location: { location: Location; abnormal_probability: number; quality_score: number; heatmap_url: string | null }[];
+    used_patient_data: boolean; model_version: string;
+  };
+  explanation: Record&lt;Lang, string&gt;;
+  report_summaries: { report_id: string; summary_en: string; summary_hi: string }[];
+  disclaimer: Record&lt;Lang, string&gt;;
+  completed_at: string;
+}</code></pre>
+
+<!-- ============================== -->
+<h2 id="data"><span class="n">09</span>Data model and storage</h2>
+<h3>Firestore</h3>
+<pre><code>screenings/{screening_id}
+  owner_uid, created_at, updated_at, status, language
+  consent { accepted, version, accepted_at }
+  patient { age_years, sex, height_cm, weight_kg, symptoms[], known_conditions[] }
+  result  { ...same as analyze "result" }       // after analyze
+  explanation { en, hi }
+  model_version
+
+screenings/{screening_id}/recordings/{recording_id}
+  location, source, platform, storage_path, duration_s,
+  accepted, quality { score, heart_rate_bpm, issues[] }, created_at
+
+screenings/{screening_id}/reports/{report_id}
+  storage_path, mime_type, summary_en, summary_hi, created_at</code></pre>
+<h3>Cloud Storage</h3>
+<pre><code>gs://&lt;bucket&gt;/screenings/{screening_id}/recordings/{recording_id}.m4a   // original upload
+gs://&lt;bucket&gt;/screenings/{screening_id}/recordings/{recording_id}.wav   // converted, 2 kHz mono
+gs://&lt;bucket&gt;/screenings/{screening_id}/reports/{report_id}.{jpg|png|pdf}
+gs://&lt;bucket&gt;/screenings/{screening_id}/heatmaps/{location}.png         // stretch
+gs://&lt;bucket&gt;/models/{model_version}/model.pt</code></pre>
+<p>Security rules: <b>deny all client reads/writes</b>. Only the backend (Admin SDK) touches Firestore/Storage. Heatmaps are served through short-lived signed URLs.</p>
+<p><b>No names, phone numbers or addresses are stored.</b></p>
+
+<!-- ============================== -->
+<h2 id="pipeline"><span class="n">10</span>Audio pipeline (backend)</h2>
+<p>One module, <code>backend/app/services/audio.py</code>, used by both the API and the training code. All numbers below are <b>starting values</b>; whatever is used in training must be used in inference. They live in one config object.</p>
+<div class="tbl"><table>
+<tr><th>Step</th><th>What</th><th>Starting value</th></tr>
+<tr><td>1. Decode</td><td>ffmpeg → mono float32 PCM</td><td><code>ffmpeg -i in.m4a -ac 1 -f wav</code></td></tr>
+<tr><td>2. Trim</td><td>Drop first and last 1 s (handling noise when placing/removing phone)</td><td>1.0 s each side</td></tr>
+<tr><td>3. Resample</td><td>To one target rate for all data</td><td><code>TARGET_SR = 2000</code> Hz (PhysioNet 2016 is 2 kHz, CirCor is 4 kHz). Use the pretrained model's rate if it needs a different one.</td></tr>
+<tr><td>4. Bandpass</td><td>Butterworth, zero-phase (<code>scipy.signal.butter</code> + <code>sosfiltfilt</code>)</td><td>Order 4, 25–400 Hz</td></tr>
+<tr><td>5. Spike removal</td><td>Remove friction spikes (Schmidt et al. method)</td><td>Optional</td></tr>
+<tr><td>6. Normalize</td><td>Scale amplitude</td><td>Divide by max abs value (peak normalize)</td></tr>
+<tr><td>7. Quality check</td><td>See below</td><td>Reject → <code>accepted: false</code></td></tr>
+<tr><td>8. Segment</td><td>Fixed windows</td><td>5 s windows, 2.5 s hop; drop the last partial window</td></tr>
+<tr><td>9. Features</td><td>Log-mel spectrogram per window</td><td><code>n_fft=256</code>, <code>hop_length=40</code> (20 ms), <code>n_mels=64</code>, <code>fmin=20</code>, <code>fmax=800</code>; then <code>log(1e-6 + S)</code> and per-window standardization</td></tr>
+</table></div>
+<h3>Quality check rules (all must pass)</h3>
+<ul>
+  <li><b>Duration</b> ≥ 8 s after trim → else <code>too_short</code></li>
+  <li><b>Clipping:</b> share of raw samples with |x| ≥ 0.99 is under 1% → else <code>clipping</code></li>
+  <li><b>Level:</b> RMS of filtered signal above floor (tune on real phone recordings) → else <code>too_quiet</code></li>
+  <li><b>Noise ratio:</b> energy in 25–400 Hz ÷ total energy above threshold → else <code>too_noisy</code></li>
+  <li><b>Heartbeat present:</b> build an envelope (Hilbert or homomorphic), autocorrelate, find peak in the 40–180 bpm lag range. Weak peak → <code>no_heartbeat_detected</code>; rate outside range → <code>heart_rate_out_of_range</code>. This also gives <code>heart_rate_bpm</code>.</li>
+  <li>If the CardioPHON quality head is usable, combine its score into <code>quality.score</code>.</li>
+</ul>
+<p>Tune thresholds on: dataset recordings marked good, dataset recordings marked unclear, and ~20 team phone recordings (quiet room vs fan on vs talking).</p>
+
+<!-- ============================== -->
+<h2 id="ml"><span class="n">11</span>ML model and training</h2>
+<h3>Datasets</h3>
+<div class="tbl"><table>
+<tr><th>Dataset</th><th>What it gives</th><th>Watch out for</th></tr>
+<tr><td><a href="https://physionet.org/content/challenge-2016/">PhysioNet / CinC 2016</a></td><td>Normal vs abnormal heart sounds, several sources, 2 kHz</td><td>Little demographic data; mixed recording devices</td></tr>
+<tr><td><a href="https://physionet.org/content/circor-heart-sound/">CirCor DigiScope 2022</a></td><td>1,568 patients, 5,282 recordings from 4 locations, 4 kHz. Murmur Present / Absent / Unknown, detailed murmur labels, S1/S2 segmentation, age group, sex, height, weight</td><td><b>Pediatric</b> (0–21 years, Brazil). Imbalanced: about 74% murmur absent, 19% present, 7% unknown. Check which split is publicly released.</td></tr>
+</table></div>
+
+<h3>Labels</h3>
+<ul>
+  <li>Binary target <code>abnormal</code>: PhysioNet 2016 abnormal = 1, normal = 0. CirCor murmur Present = 1, Absent = 0.</li>
+  <li>CirCor <code>Unknown</code>: exclude from classifier training; use as negative examples for the quality check.</li>
+</ul>
+
+<h3>Splits (critical)</h3>
+<ul>
+  <li><b>Split by patient, never by recording or window.</b> Same patient in train and test gives fake high accuracy.</li>
+  <li>70 / 15 / 15 train / val / test, stratified by label and dataset. Fix the random seed and save patient ID lists in <code>ml/splits/</code>.</li>
+</ul>
+
+<h3>Model plan</h3>
+<ol>
+  <li><b>Baseline first</b> (day 1): small CNN on log-mel windows. Proves the pipeline end to end.</li>
+  <li><b>Main model:</b> fine-tune pretrained <a href="https://arxiv.org/abs/2511.04533">CardioPHON</a> (self-supervised on 6 heart sound datasets, includes quality assessment). If weights or code are hard to use in time, fine-tune a general pretrained audio CNN instead.</li>
+  <li><b>Window → recording:</b> mean of window probabilities.</li>
+  <li><b>Recording → screening:</b> max over locations (favours sensitivity: one bad spot flags the screening).</li>
+  <li><b>Metadata fusion (late fusion):</b> logistic regression or small MLP on <code>[audio_probability, age_years, sex, height_cm, weight_kg, bmi, missing flags]</code>. Map CirCor age groups to midpoint years. Fill missing values with training medians + a missing flag. Report results with and without metadata.</li>
+</ol>
+
+<h3>Training details</h3>
+<ul>
+  <li>Imbalance: class-weighted loss (or focal loss) + oversampling of abnormal windows.</li>
+  <li>Augmentation: random time shift, gain ±6 dB, added background noise at 10–30 dB SNR, small time-stretch (±5%).</li>
+  <li>Early stopping on validation AUC.</li>
+  <li>Export: TorchScript (<code>model.pt</code>) for CPU inference. Version string like <code>cardiophon-ft-0.1</code>.</li>
+  <li>Explainability (stretch): Grad-CAM on last conv layer, overlay on spectrogram, save PNG.</li>
+</ul>
+
+<h3>Metrics to report (on test split)</h3>
+<ul>
+  <li>Sensitivity, specificity, AUC, F1, confusion matrix, per dataset and combined.</li>
+  <li>Choose decision threshold on validation for <b>sensitivity ≥ 0.85</b>. Missing a sick heart is worse than a false alarm.</li>
+  <li>Log every run in <code>ml/results.md</code>: date, data, params, metrics.</li>
+</ul>
+
+<h3>Known limitations (say these in the pitch)</h3>
+<ul>
+  <li>CirCor is pediatric; adult performance is unproven.</li>
+  <li>Training data is stethoscope audio; phone mic audio is different (domain gap).</li>
+  <li>No clinical validation yet.</li>
+</ul>
+
+<!-- ============================== -->
+<h2 id="gemini"><span class="n">12</span>Gemini usage</h2>
+<ul>
+  <li><b>Two jobs only:</b> (1) explain the model result in plain Hindi and English, (2) summarize uploaded reports (multimodal input: image/PDF).</li>
+  <li>Model: a current Gemini Flash-class model. Pin the exact ID in <code>GEMINI_MODEL</code>.</li>
+  <li>Temperature 0.2. Request JSON output. Timeout 15 s.</li>
+  <li><b>Fallback:</b> if Gemini fails or times out, use fixed template text per label. The result must never depend on Gemini.</li>
+  <li>Do not send names or any identifiers to Gemini. Only age, sex, label, probabilities, bpm, locations, report summary.</li>
+</ul>
+<h3>Explanation prompt (starting version)</h3>
+<pre><code>SYSTEM:
+You explain the output of a heart sound SCREENING tool to a non-medical person in India.
+Rules:
+- This is not a diagnosis. Never name a disease as certain. Never say "you have".
+- Use simple words. Max 3 short sentences per language.
+- If label is "needs_checkup": calmly recommend seeing a doctor soon. Do not cause panic.
+- If label is "unclear": ask them to record again in a quiet place, or see a doctor.
+- If label is "normal": say no unusual sound was found, and that a doctor visit is still advised if they have symptoms.
+- If symptoms include chest_pain or fainting, always advise seeing a doctor promptly, whatever the label.
+- Return JSON only: {"en": "...", "hi": "..."}. Hindi in Devanagari.
+
+USER:
+{
+  "label": "needs_checkup",
+  "abnormal_probability": 0.81,
+  "heart_rate_bpm": 76,
+  "per_location": [{"location": "MV", "abnormal_probability": 0.81}],
+  "patient": {"age_years": 34, "sex": "male", "symptoms": ["breathlessness"]},
+  "report_summary": null
+}</code></pre>
+<h3>Report summary prompt</h3>
+<pre><code>Summarize this medical report for a screening app. Return JSON:
+{"summary_en": "...", "summary_hi": "...", "report_type": "ecg|echo|blood_test|prescription|other", "date": "YYYY-MM or null"}
+Max 2 sentences each. Only state what is written in the report. Do not add advice or diagnosis.
+If the image is not a medical report, return report_type "other" and say so.</code></pre>
+
+<!-- ============================== -->
+<h2 id="result"><span class="n">13</span>Result logic and UI copy</h2>
+<div class="tbl"><table>
+<tr><th>Label</th><th>Rule</th><th>Badge colour</th><th>Headline (EN / HI)</th></tr>
+<tr><td><code>unclear</code></td><td>No accepted recording reached analyze, or all accepted recordings have quality score below 0.5</td><td class="muted">Grey</td><td>Recording unclear · रिकॉर्डिंग साफ़ नहीं है</td></tr>
+<tr><td><code>needs_checkup</code></td><td><code>abnormal_probability ≥ T</code> (T chosen on validation for sensitivity ≥ 0.85)</td><td class="warn">Amber (not red)</td><td>Please get a check-up · कृपया डॉक्टर से जाँच कराएँ</td></tr>
+<tr><td><code>normal</code></td><td><code>abnormal_probability &lt; T</code></td><td class="ok">Green</td><td>No unusual sound found · कोई असामान्य आवाज़ नहीं मिली</td></tr>
+</table></div>
+<ul>
+  <li><code>confidence</code> = <code>abnormal_probability</code> for needs_checkup, <code>1 − abnormal_probability</code> for normal. Show as "High / Medium / Low", not a raw percent: High ≥ 0.8, Medium 0.6–0.8, Low &lt; 0.6.</li>
+  <li>Disclaimer is always visible on the result screen, not hidden behind a tap.</li>
+  <li>Share text: label + bpm + date + disclaimer. No patient identifiers.</li>
+</ul>
+
+<!-- ============================== -->
+<h2 id="repo"><span class="n">14</span>Repo layout and local setup</h2>
+<pre><code>heartscreen/
+├── app/                      # React Native (Expo, TypeScript)
+│   ├── src/screens/          # Welcome, Consent, PatientInfo, Guide, Record, Quality, Reports, Analyzing, Result, History
+│   ├── src/api/              # client.ts, types.ts (copy of section 8 types)
+│   ├── src/i18n/             # en.json, hi.json
+│   └── assets/chest-guide/   # placement illustrations
+├── backend/
+│   ├── app/main.py
+│   ├── app/api/screenings.py
+│   ├── app/core/{config.py, auth.py, errors.py}
+│   ├── app/services/{audio.py, quality.py, features.py, model.py, fusion.py, gemini.py, storage.py}
+│   ├── app/schemas.py
+│   ├── tests/                # pytest + sample wavs
+│   ├── requirements.txt
+│   └── Dockerfile
+├── ml/
+│   ├── notebooks/            # EDA, training
+│   ├── data/                 # gitignored: raw datasets
+│   ├── splits/               # patient id lists
+│   ├── train.py, export.py
+│   └── results.md
+├── demo/                     # backup recordings for the demo
+└── docs/context.html         # this page</code></pre>
+
+<h3>Environment variables</h3>
+<div class="tbl"><table>
+<tr><th>Where</th><th>Variable</th><th>Example</th></tr>
+<tr><td>Backend</td><td><code>GCP_PROJECT</code></td><td>heartscreen-abc</td></tr>
+<tr><td>Backend</td><td><code>STORAGE_BUCKET</code></td><td>heartscreen-abc-data</td></tr>
+<tr><td>Backend</td><td><code>GEMINI_API_KEY</code></td><td>secret (Secret Manager)</td></tr>
+<tr><td>Backend</td><td><code>GEMINI_MODEL</code></td><td>pinned model id</td></tr>
+<tr><td>Backend</td><td><code>MODEL_PATH</code></td><td>/models/model.pt or gs:// path</td></tr>
+<tr><td>Backend</td><td><code>MODEL_VERSION</code></td><td>cardiophon-ft-0.1</td></tr>
+<tr><td>Backend</td><td><code>DECISION_THRESHOLD</code></td><td>0.35 (from validation)</td></tr>
+<tr><td>Backend</td><td><code>MOCK_INFERENCE</code></td><td>true | false</td></tr>
+<tr><td>Backend</td><td><code>TARGET_SR</code></td><td>2000</td></tr>
+<tr><td>App</td><td><code>EXPO_PUBLIC_API_BASE_URL</code></td><td>https://heartscreen-api-xxxx.a.run.app</td></tr>
+<tr><td>App</td><td><code>EXPO_PUBLIC_FIREBASE_*</code></td><td>Firebase web config values</td></tr>
+</table></div>
+
+<h3>Run locally</h3>
+<pre><code># backend
+cd backend
+python -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements.txt          # needs ffmpeg installed on the machine
+export MOCK_INFERENCE=true GOOGLE_APPLICATION_CREDENTIALS=./sa.json
+uvicorn app.main:app --reload --port 8000
+
+# app
+cd app
+npm install
+EXPO_PUBLIC_API_BASE_URL=http://&lt;your-LAN-IP&gt;:8000 npx expo start
+# phone and laptop on the same Wi-Fi; use LAN IP, not localhost</code></pre>
+
+<h3>Backend requirements (starting list)</h3>
+<pre><code>fastapi
+uvicorn[standard]
+python-multipart
+pydantic-settings
+numpy
+scipy
+librosa
+soundfile
+torch            # CPU wheel in Docker
+firebase-admin
+google-cloud-storage
+google-genai</code></pre>
+
+<!-- ============================== -->
+<h2 id="deploy"><span class="n">15</span>Deployment</h2>
+<ul>
+  <li><b>Cloud Run</b>, region <code>asia-south1</code> (Mumbai). 2 vCPU, 4 GiB RAM, concurrency 4, request timeout 60 s.</li>
+  <li><b>Min instances = 1 on demo day</b> to avoid cold starts (model load takes seconds). Set back to 0 after.</li>
+  <li>Docker image: <code>python:3.11-slim</code> + <code>apt-get install ffmpeg</code> + CPU-only torch. Load the model once at startup, not per request.</li>
+  <li>Secrets via Secret Manager (<code>GEMINI_API_KEY</code>). Service account with Firestore + Storage access.</li>
+  <li>Logs: request id, screening id, durations, model version. <b>Never log patient data or audio.</b></li>
+  <li>Vertex AI endpoint is optional. If time is short, keep the model inside the Cloud Run container.</li>
+</ul>
+<pre><code>gcloud run deploy heartscreen-api \
+  --source backend --region asia-south1 \
+  --cpu 2 --memory 4Gi --concurrency 4 --timeout 60 \
+  --set-env-vars MODEL_VERSION=cardiophon-ft-0.1,MOCK_INFERENCE=false \
+  --set-secrets GEMINI_API_KEY=gemini-key:latest</code></pre>
+
+<!-- ============================== -->
+<h2 id="privacy"><span class="n">16</span>Privacy, safety, legal</h2>
+<ul>
+  <li><b>Consent screen</b> before any data is collected. Store consent version + timestamp.</li>
+  <li>Collect the minimum: no name, phone, address or exact date of birth.</li>
+  <li>Users can delete a screening (all audio and reports).</li>
+  <li>Follow the spirit of India's Digital Personal Data Protection Act, 2023: clear purpose, consent, deletion on request.</li>
+  <li>Delete all hackathon data after the event unless the team decides otherwise.</li>
+  <li>Team test recordings: only from people who agreed, and never used to claim accuracy.</li>
+  <li>Wording: "screening", "pre-check", "may need a check-up". Never "diagnosis".</li>
+</ul>
+<p><b>Consent text (draft, EN):</b> "This app records your heartbeat and uses AI to check if it sounds normal. It is a screening tool and does not replace a doctor. Your recordings and basic details (age, sex, height, weight) are stored securely to give you a result. We do not collect your name or phone number. You can delete your data at any time."</p>
+
+<!-- ============================== -->
+<h2 id="demo"><span class="n">17</span>Demo plan</h2>
+<ul>
+  <li>Keep a <b>demo build</b> installed on 2 phones (one Android, one iOS if possible).</li>
+  <li><code>demo/</code> folder with dataset recordings: 1 clear normal, 1 clear murmur, 1 noisy (to show the quality check rejecting it). Add a hidden "Use sample recording" button in demo builds.</li>
+  <li>Live flow: one real phone recording (quality check + bpm), then a sample murmur file for the "needs check-up" result.</li>
+  <li>Record a 60–90 s screen video of the full flow as backup if Wi-Fi fails.</li>
+  <li>Warm the backend (min instances 1) 30 minutes before.</li>
+  <li>Have the metrics table (sensitivity, specificity, AUC) ready on a slide.</li>
+</ul>
+
+<!-- ============================== -->
+<h2 id="plan"><span class="n">18</span>Build plan and checklist</h2>
+<p class="muted">Dates to fill once the hackathon schedule is fixed.</p>
+<h3>Phase 0: setup</h3>
+<ul class="check">
+  <li>GCP project, Firebase project, billing, bucket, Firestore</li>
+  <li>Repo with folders from section 14</li>
+  <li>Download PhysioNet 2016 + CirCor</li>
+  <li>Backend skeleton with <code>/healthz</code> + mock mode deployed to Cloud Run</li>
+  <li>Expo app skeleton with navigation + anonymous Firebase auth</li>
+</ul>
+<h3>Phase 1: core</h3>
+<ul class="check">
+  <li>audio.py: decode, trim, resample, bandpass, normalize, segment, features</li>
+  <li>quality.py with heart rate</li>
+  <li>Patient-level splits saved</li>
+  <li>Baseline CNN trained, metrics logged</li>
+  <li>App: patient form, guide, record, upload, quality feedback against mock API</li>
+</ul>
+<h3>Phase 2: model + integration</h3>
+<ul class="check">
+  <li>CardioPHON (or fallback) fine-tuned, threshold chosen, model exported</li>
+  <li>Metadata fusion trained, with/without comparison</li>
+  <li>Real inference behind <code>/analyze</code></li>
+  <li>Gemini explanation + fallback templates</li>
+  <li>App: analyzing + result + history screens wired to real API</li>
+  <li>Hindi strings done</li>
+</ul>
+<h3>Phase 3: polish</h3>
+<ul class="check">
+  <li>Quality thresholds tuned on real phone recordings</li>
+  <li>Stretch items (heatmap, reports, share) if time</li>
+  <li>Demo build, sample recordings, backup video</li>
+  <li>Deck updated with real metrics and final name</li>
+</ul>
+
+<!-- ============================== -->
+<h2 id="open"><span class="n">19</span>Open decisions</h2>
+<div class="tbl"><table>
+<tr><th>Decision</th><th>Options</th><th>Default if nobody decides</th></tr>
+<tr><td>Final app name</td><td>HridAI, Dhadkan, Spandan, LubDub</td><td>HridAI</td></tr>
+<tr><td>Hackathon track</td><td>Official list</td><td>"Healthcare &amp; AI" (placeholder in deck)</td></tr>
+<tr><td>Members 3 and 4</td><td>Names + roles</td><td>Design/pitch, data/testing</td></tr>
+<tr><td>Locations in MVP</td><td>2 or 4</td><td>2 (MV + AV)</td></tr>
+<tr><td>Model hosting</td><td>In container vs Vertex AI endpoint</td><td>In container</td></tr>
+<tr><td>Main model</td><td>CardioPHON vs fallback CNN</td><td>Decide after 1 day of trying CardioPHON</td></tr>
+<tr><td>Adult data gap</td><td>Find adult labelled data vs state as limitation</td><td>State as limitation</td></tr>
+</table></div>
+
+<!-- ============================== -->
+<h2 id="glossary"><span class="n">20</span>Glossary</h2>
+<div class="tbl"><table>
+<tr><th>Term</th><th>Meaning</th></tr>
+<tr><td>S1 / S2</td><td>The two main heart sounds ("lub" and "dub"): valves closing at the start of systole and diastole.</td></tr>
+<tr><td>Systole / diastole</td><td>Heart contracting / heart relaxing. Murmurs are described by which phase they occur in.</td></tr>
+<tr><td>Murmur</td><td>Extra whooshing sound from turbulent blood flow. Can be harmless or a sign of valve disease.</td></tr>
+<tr><td>Auscultation</td><td>Listening to body sounds, usually with a stethoscope.</td></tr>
+<tr><td>PCG</td><td>Phonocardiogram: a recording of heart sounds.</td></tr>
+<tr><td>Bandpass filter</td><td>Keeps frequencies in a range (here 25–400 Hz) and removes the rest.</td></tr>
+<tr><td>Mel-spectrogram</td><td>A picture of sound: time on x, pitch on y, loudness as colour. The CNN reads this like an image.</td></tr>
+<tr><td>Sensitivity</td><td>Of all truly abnormal cases, the share we flag. Our priority.</td></tr>
+<tr><td>Specificity</td><td>Of all truly normal cases, the share we correctly call normal.</td></tr>
+<tr><td>AUC</td><td>How well the model ranks abnormal above normal across all thresholds (0.5 = random, 1 = perfect).</td></tr>
+<tr><td>Grad-CAM</td><td>Heatmap showing which part of the spectrogram drove the model's decision.</td></tr>
+<tr><td>Late fusion</td><td>Combining the audio model's output with patient data in a second small model.</td></tr>
+<tr><td>ASHA worker</td><td>Accredited Social Health Activist: community health worker in India.</td></tr>
+<tr><td>PHC</td><td>Primary Health Centre.</td></tr>
+</table></div>
+
+<!-- ============================== -->
+<h2 id="refs"><span class="n">21</span>References</h2>
+<ul>
+  <li><a href="https://physionet.org/content/circor-heart-sound/">CirCor DigiScope Phonocardiogram Dataset (PhysioNet)</a></li>
+  <li><a href="https://physionet.org/content/challenge-2016/">PhysioNet / CinC Challenge 2016: Classification of heart sound recordings</a></li>
+  <li><a href="https://arxiv.org/abs/2511.04533">CardioPHON: quality assessment and self-supervised pretraining for heart sound screening (arXiv)</a></li>
+  <li><a href="https://github.com/aristotelisballas/listen2yourheart">Listen2YourHeart: self-supervised murmur detection code (GitHub, MIT)</a></li>
+  <li><a href="https://github.com/zhaoren91/awesome-heart-sound-analysis">Awesome heart sound analysis (survey repo)</a></li>
+  <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5853766">Smartphone heart sound recording + CNN pilot study</a></li>
+  <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9707975">Severe aortic stenosis screening with CNN in a smartphone app</a></li>
+  <li><a href="https://innovations.bmj.com/content/7/4/609">DIY digital stethoscope (AIIMS, BMJ Innovations)</a></li>
+  <li><a href="https://www.businesswire.com/news/home/20200128005232/en/">Eko FDA clearance: murmur + AFib algorithms</a></li>
+  <li><a href="https://docs.expo.dev/versions/latest/sdk/audio/">Expo Audio docs</a></li>
+  <li><a href="https://cloud.google.com/run/docs">Cloud Run docs</a> · <a href="https://ai.google.dev/gemini-api/docs">Gemini API docs</a> · <a href="https://firebase.google.com/docs/auth/admin/verify-id-tokens">Verify Firebase ID tokens</a></li>
+</ul>
+
+</div>
