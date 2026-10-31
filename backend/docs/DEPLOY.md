@@ -255,6 +255,7 @@ DATA_BACKEND: "memory"
 MOCK_INFERENCE: "true"
 MOCK_QUALITY: "true"
 MOCK_SCENARIO: "cycle"
+LOCAL_DATA_DIR: "/tmp/local_data"
 CORS_ORIGINS: "*"
 ```
 

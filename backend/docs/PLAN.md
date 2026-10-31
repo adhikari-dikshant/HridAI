@@ -1,6 +1,6 @@
 # HridAI Backend: Build Plan
 
-> Status: **Planning complete, no code written yet.** Track progress by ticking boxes (`- [x]`) and updating `HANDOFF.md`.
+> Status: **B0 and B1 done; mock API runs locally.** Track progress by ticking boxes (`- [x]`) and updating `HANDOFF.md`.
 > Source of truth for requirements: `../../heart-screening-context.html` (summarised for the backend in `SPEC.md`).
 > Updated 2026-10-31 with the non-contract findings from `REVIEW.md`. Deployment steps are in `DEPLOY.md`.
 
@@ -61,7 +61,7 @@ backend/
 ├── pyproject.toml          # the one dependency list; package "app", ruff + pytest config; `pip install -e backend` from ml/
 ├── uv.lock                 # exact versions
 ├── requirements.txt        # exported from uv.lock for Docker; never edited by hand
-├── requirements-dev.txt    # exported from uv.lock: pytest, httpx, ruff
+├── requirements-dev.txt    # exported from uv.lock: pytest, httpx2, ruff
 ├── .env.example
 ├── Dockerfile
 ├── .dockerignore
@@ -143,34 +143,34 @@ This decides the audio constants, so it must finish before B4 and B5 freeze them
 
 ### B0 — Scaffold and tooling (≈ 0.5 day)
 
-- [ ] `pyproject.toml` (package `app`, Python 3.11, ruff config, pytest config) + `uv.lock`
-- [ ] `requirements.txt` + `requirements-dev.txt` exported from `uv.lock`
-- [ ] `.env.example`, `.gitignore`, `.dockerignore`, `.gcloudignore` (ignore `.venv`, `sa.json`, `.env`, `local_data/`; `.gitignore` also ignores `models/`, but `.dockerignore` and `.gcloudignore` must not)
-- [ ] `app/core/config.py` with all settings from SPEC §7 and local defaults (`DATA_BACKEND=memory`, `AUTH_MODE=dev`, `MOCK_INFERENCE=true`); `ENV=local|staging|prod`
-- [ ] Startup check: refuse to start if `ENV=prod` with dev auth, memory storage or any mock
-- [ ] `app/main.py` `create_app()` + `lifespan`; `GET /healthz`
-- [ ] `app/core/logging.py`: JSON logger, `X-Request-ID` middleware (generate if absent, echo in response)
-- [ ] `app/core/errors.py`: `ApiError(status, code)` + handlers that produce the SPEC error envelope, including for FastAPI validation errors (→ 400 `invalid_request`, not 422; never log or echo the raw error body, it can hold patient fields) and unhandled errors (→ 500 `internal_error`, log request id)
-- [ ] `tests/test_health.py` passes; `ruff check .` clean
+- [x] `pyproject.toml` (package `app`, Python 3.11, ruff config, pytest config) + `uv.lock`
+- [x] `requirements.txt` + `requirements-dev.txt` exported from `uv.lock`
+- [x] `.env.example`, `.gitignore`, `.dockerignore`, `.gcloudignore` (ignore `.venv`, `sa.json`, `.env`, `local_data/`; `.gitignore` also ignores `models/`, but `.dockerignore` and `.gcloudignore` must not)
+- [x] `app/core/config.py` with all settings from SPEC §7 and local defaults (`DATA_BACKEND=memory`, `AUTH_MODE=dev`, `MOCK_INFERENCE=true`); `ENV=local|staging|prod`
+- [x] Startup check: refuse to start if `ENV=prod` with dev auth, memory storage or any mock
+- [x] `app/main.py` `create_app()` + `lifespan`; `GET /healthz`
+- [x] `app/core/logging.py`: JSON logger, `X-Request-ID` middleware (generate if absent, echo in response)
+- [x] `app/core/errors.py`: `ApiError(status, code)` + handlers that produce the SPEC error envelope, including for FastAPI validation errors (→ 400 `invalid_request`, not 422; never log or echo the raw error body, it can hold patient fields) and unhandled errors (→ 500 `internal_error`, log request id)
+- [x] `tests/test_health.py` passes; `ruff check .` clean
 
 **Accept:** `uvicorn app.main:app --reload` runs on Windows; `/healthz` returns `{"status":"ok","model_version":...,"mock":true}`.
 
 ### B1 — Full v1 API in mock mode (≈ 1 day) — **unblocks the app**
 
-- [ ] `app/schemas.py`: every request/response model in SPEC §2 (enums for `Location`, `Sex`, `Symptom`, `KnownCondition`, `Label`, `QualityIssue`, `ScreeningStatus`, `Source`, `Platform`, `Lang`)
-- [ ] `app/core/ids.py`, `app/core/messages.py` (all EN/HI strings from SPEC)
-- [ ] `InMemoryRepository` + `LocalBlobStore` (writes under `local_data/`)
-- [ ] `app/core/auth.py` dev mode (`Bearer dev:<uid>`); missing/invalid → 401 `unauthorized`
-- [ ] `screening_service.py` state machine: `awaiting_recordings → ready → analyzing → completed | failed`
-- [ ] `POST /v1/screenings` (validate consent accepted = true, age 0–110, required fields)
-- [ ] `POST /v1/screenings/{id}/recordings` (multipart; validate location/source/platform; size ≤ 5 MB → 413, rejected on `Content-Length` in middleware and by counting bytes while reading, because Starlette parses the body before the handler runs; content type/extension → 415; replace previous recording for same location)
-- [ ] `MockQuality`: accepts unless `duration_ms < 8000` (→ `too_short`); returns realistic score/bpm
-- [ ] `POST /v1/screenings/{id}/analyze` with `MockClassifier` + `TemplateExplainer`; 409 `no_accepted_recordings`
-- [ ] `GET /v1/screenings/{id}`, `GET /v1/screenings?limit=20` (newest first, owner only), `DELETE /v1/screenings/{id}` (204, deletes blobs)
-- [ ] Ownership: other user's screening → 404 `screening_not_found` (never 403, never leak existence)
-- [ ] `MOCK_SCENARIO=normal|needs_checkup|unclear|cycle` env var to let the app team test every result screen
-- [ ] CORS enabled for local Expo web dev (configurable origins)
-- [ ] API tests for every endpoint, every error code, and the full happy path
+- [x] `app/schemas.py`: every request/response model in SPEC §2 (enums for `Location`, `Sex`, `Symptom`, `KnownCondition`, `Label`, `QualityIssue`, `ScreeningStatus`, `Source`, `Platform`, `Lang`)
+- [x] `app/core/ids.py`, `app/core/messages.py` (all EN/HI strings from SPEC)
+- [x] `InMemoryRepository` + `LocalBlobStore` (writes under `local_data/`)
+- [x] `app/core/auth.py` dev mode (`Bearer dev:<uid>`); missing/invalid → 401 `unauthorized`
+- [x] `screening_service.py` state machine: `awaiting_recordings → ready → analyzing → completed | failed`
+- [x] `POST /v1/screenings` (validate consent accepted = true, age 0–110, required fields)
+- [x] `POST /v1/screenings/{id}/recordings` (multipart; validate location/source/platform; size ≤ 5 MB → 413, rejected on `Content-Length` in middleware and by counting bytes while reading, because Starlette parses the body before the handler runs; content type/extension → 415; replace previous recording for same location)
+- [x] `MockQuality`: accepts unless `duration_ms < 8000` (→ `too_short`); returns realistic score/bpm
+- [x] `POST /v1/screenings/{id}/analyze` with `MockClassifier` + `TemplateExplainer`; 409 `no_accepted_recordings`
+- [x] `GET /v1/screenings/{id}`, `GET /v1/screenings?limit=20` (newest first, owner only), `DELETE /v1/screenings/{id}` (204, deletes blobs)
+- [x] Ownership: other user's screening → 404 `screening_not_found` (never 403, never leak existence)
+- [x] `MOCK_SCENARIO=normal|needs_checkup|unclear|cycle` env var to let the app team test every result screen
+- [x] CORS enabled for local Expo web dev (configurable origins)
+- [x] API tests for every endpoint, every error code, and the full happy path
 - [ ] Export `openapi.json` and share with the app dev; confirm field names match SPEC §2 TypeScript types
 
 **Accept:** full flow works with curl/`scripts/smoke_test.ps1`; responses byte-for-byte match SPEC examples in shape.

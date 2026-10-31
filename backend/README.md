@@ -2,7 +2,7 @@
 
 FastAPI service for the HridAI heart sound **screening** app: recording quality check, heart rate, screening classification, and Gemini explanations in Hindi + English. Deployed on Google Cloud Run.
 
-> Status: **planning**. See [docs/PLAN.md](docs/PLAN.md). AI assistants: start at [AGENTS.md](AGENTS.md).
+> Status: **mock API working locally** (B0, B1 done). See [docs/PLAN.md](docs/PLAN.md). AI assistants: start at [AGENTS.md](AGENTS.md).
 
 ## Docs
 
@@ -16,7 +16,7 @@ FastAPI service for the HridAI heart sound **screening** app: recording quality 
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Step-by-step Google Cloud deployment |
 | [../heart-screening-context.html](../heart-screening-context.html) | Canonical cross-team context (wins on conflicts) |
 
-## Run locally (Windows / PowerShell) — once B0 is done
+## Run locally (Windows / PowerShell)
 
 ```powershell
 cd backend
@@ -28,7 +28,15 @@ Copy-Item .env.example .env           # defaults: memory backend, dev auth, mock
 uvicorn app.main:app --reload --port 8000
 ```
 
-Test: `pytest` · Lint: `ruff check .`
+Test: `pytest` · Lint: `ruff check .` · Full flow against a running server (needs PowerShell 7): `./scripts/smoke_test.ps1`
+
+After changing the API, run `python -m scripts.export_openapi` and share `docs/openapi.json` with the app developer. After changing dependencies, run:
+
+```powershell
+uv lock
+uv export --no-dev --no-emit-project --no-hashes -o requirements.txt
+uv export --only-dev --no-emit-project --no-hashes -o requirements-dev.txt
+```
 
 Dev auth (local only): send `Authorization: Bearer dev:<any-uid>`.
 Phone on the same Wi-Fi: run with `--host 0.0.0.0` and use your LAN IP in `EXPO_PUBLIC_API_BASE_URL`.

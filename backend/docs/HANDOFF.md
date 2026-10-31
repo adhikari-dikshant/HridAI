@@ -5,7 +5,9 @@
 
 ## Current state
 
-- **Phase:** Planning reviewed. No backend code yet. Next phase is **B0 Scaffold** (`PLAN.md` §3).
+- **Phase:** **B0 and B1 done.** The full v1 API runs in mock mode locally: 98 tests pass, ruff is clean, and `scripts/smoke_test.ps1` passed against a live server. Next phase is **B2** (`PLAN.md` §3).
+- **Not built yet:** `AUTH_MODE=firebase`, `DATA_BACKEND=firestore` and `MOCK_INFERENCE`/`MOCK_QUALITY=false` stop startup with `NotImplementedError` until B3–B5, and `ENV=prod` refuses the mock settings, so only `local` and `staging` can run today.
+- **Dockerfile:** not written yet (B2), so the container has never been built.
 - **Review:** `docs/REVIEW.md` lists 38 findings. Non-contract ones are applied to `PLAN.md`, `SPEC.md` and the HTML.
 - **Still open, needs the app developer:** `/health` path (finding 2; DEPLOY.md already expects it), app minimum 10 s (10), confidence rescale (14), keep last accepted recording (33), contract edge cases (34), over-limit status (20, proposed 429), Android `audioSource: 'unprocessed'` (35).
 - **Still open, needs the user:** Google's Generative AI health terms (23); legal review before real users (27).
@@ -17,7 +19,9 @@
 
 ## Next task
 
-**B0 — Scaffold and tooling** (see `PLAN.md` §3 B0 checklist). Then go straight to **B1 — full v1 API in mock mode**, because the mobile developer is blocked on it. In parallel, run the **Model trial** (`PLAN.md` §3) before B4/B5 freeze any audio constants.
+1. Send `docs/openapi.json` to the app developer and confirm field names against SPEC §2 (last B1 item).
+2. **B2 — deploy the mock**: needs the user to install `gcloud`, create the Google Cloud project and enable billing (`DEPLOY.md` steps 1–6). Write the Dockerfile from `DEPLOY.md` step 6 and build it with Docker running.
+3. Continue the **Model trial** (`PLAN.md` §3): the repo README links `heart_sound_classification/checkpoints/pretrained_physionet_2022_4kHz.pth`, which suggests 4 kHz rather than our 2 kHz, but input shape is unconfirmed, and **no licence file was found** at the repo top level or in the README. Ask the authors before building on the weights. Decide before B4/B5 freeze audio constants.
 
 ## Key decisions so far
 
@@ -33,6 +37,22 @@
 | 2026-10-31 | Gemini through Vertex AI with `gemini-3.5-flash`, no API key | data handling; no secret to manage |
 | 2026-10-31 | Metadata fusion off for MVP; rejected audio not kept; 30-day audio retention; `ENV=staging` added | `REVIEW.md` findings 15, 25, 26, 3 |
 | 2026-10-31 | Cross-assistant context: `AGENTS.md` (canonical) + `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/backend.mdc` pointing to it | user wants to resume in multiple AI assistants |
+
+### B0/B1 decisions to confirm
+
+| Decision | Why | Cost if wrong |
+|----------|-----|---------------|
+| `/health` added alongside the contract's `/healthz` | `DEPLOY.md` needs it; additive, app doesn't call health | Remove one route |
+| Generic error codes `not_found`, `method_not_allowed` added | Contract had no code for unknown routes; additive | App ignores them |
+| `GET /v1/screenings/{id}` returns the analyze response under `analysis` (null until completed) | Contract says "the analyze response if completed" without a shape | Small app + schema change |
+| Accepted and rejected recordings use two response models, not `response_model_exclude_none` | `exclude_none` would drop the required `heart_rate_bpm: null` | None |
+| Re-upload replaces the old recording even if the new one is rejected | Contract's "replaces"; `REVIEW.md` finding 33 is still open | A failed retake loses a good recording until agreed |
+| Unclear `abnormal_probability` is still the max; `heart_rate_bpm` is the rounded mean of known rates | Contract requires a number and doesn't define the aggregate | One-line change |
+| Added `LOCAL_DATA_DIR` setting | Non-root container can only write to `/tmp` | None |
+| Test client dep is `httpx2`, not `httpx` | Starlette deprecated `httpx` in `TestClient` | None |
+| `/docs` is off in prod; `/openapi.json` stays on | Docs aren't needed publicly; the schema isn't sensitive | Hide it with one setting |
+
+**New additive items to tell the app developer:** `/health`, the two generic error codes, and the `analysis` field. Hindi in `errors.py`, `messages.py` and `templates.py` is drafted and needs native-speaker review.
 
 Open backend defaults are listed in `PLAN.md` §6; ctx-level open decisions (app name, track, members 3–4, 2 vs 4 locations, CardioPHON vs CNN) are in the HTML §19.
 
@@ -63,6 +83,13 @@ What the assistant did: read `heart-screening-context.html` in full (project spe
 No application code was written; the user asked for a plan only.
 
 ## Session log (newest first)
+
+### 2026-10-31 — Session 3 — B0 + B1
+- Built the scaffold and full v1 mock API test-first, on branch `feat/backend-mock-api`. Not committed.
+- Tests, lint, `docs/openapi.json` and the live smoke test all pass. ffmpeg is still not installed locally; B1 doesn't need it, B4 does.
+- Reviewed by the author only, no independent review yet.
+- Checked CardioPHON: weights linked, no licence found.
+- Next: see "Next task".
 
 ### 2026-10-31 — Session 2 — plan review + deploy guide
 - Reviewed all plans against current Google docs and numeric tests of SPEC's constants. Wrote `docs/REVIEW.md`.

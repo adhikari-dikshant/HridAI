@@ -1,0 +1,1458 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HridAI API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": " Health",
+        "operationId": "_health_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response  Health Healthz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": " Health",
+        "operationId": "_health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response  Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/screenings": {
+      "post": {
+        "summary": "Create Screening",
+        "operationId": "create_screening_v1_screenings_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreeningCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreeningCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List Screenings",
+        "operationId": "list_screenings_v1_screenings_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreeningList"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/v1/screenings/{screening_id}": {
+      "get": {
+        "summary": "Get Screening",
+        "operationId": "get_screening_v1_screenings__screening_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "screening_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Screening Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreeningDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Screening",
+        "operationId": "delete_screening_v1_screenings__screening_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "screening_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Screening Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/v1/screenings/{screening_id}/recordings": {
+      "post": {
+        "summary": "Add Recording",
+        "operationId": "add_recording_v1_screenings__screening_id__recordings_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "screening_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Screening Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_add_recording_v1_screenings__screening_id__recordings_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RejectedRecording"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AcceptedRecording"
+                    }
+                  ],
+                  "title": "Response Add Recording V1 Screenings  Screening Id  Recordings Post"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/v1/screenings/{screening_id}/analyze": {
+      "post": {
+        "summary": "Analyze Screening",
+        "operationId": "analyze_screening_v1_screenings__screening_id__analyze_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "screening_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Screening Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyzeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcceptedRecording": {
+        "properties": {
+          "recording_id": {
+            "type": "string",
+            "title": "Recording Id"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "screening_status": {
+            "$ref": "#/components/schemas/ScreeningStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recording_id",
+          "location",
+          "accepted",
+          "quality",
+          "screening_status"
+        ],
+        "title": "AcceptedRecording"
+      },
+      "AnalyzeResponse": {
+        "properties": {
+          "screening_id": {
+            "type": "string",
+            "title": "Screening Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScreeningStatus"
+          },
+          "result": {
+            "$ref": "#/components/schemas/ScreeningResult"
+          },
+          "explanation": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Lang"
+            },
+            "type": "object",
+            "title": "Explanation"
+          },
+          "report_summaries": {
+            "items": {
+              "$ref": "#/components/schemas/ReportSummary"
+            },
+            "type": "array",
+            "title": "Report Summaries"
+          },
+          "disclaimer": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Lang"
+            },
+            "type": "object",
+            "title": "Disclaimer"
+          },
+          "completed_at": {
+            "type": "string",
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "screening_id",
+          "status",
+          "result",
+          "explanation",
+          "report_summaries",
+          "disclaimer",
+          "completed_at"
+        ],
+        "title": "AnalyzeResponse"
+      },
+      "Body_add_recording_v1_screenings__screening_id__recordings_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Duration Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "location",
+          "source",
+          "platform",
+          "duration_ms"
+        ],
+        "title": "Body_add_recording_v1_screenings__screening_id__recordings_post"
+      },
+      "Consent": {
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "version": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted",
+          "version"
+        ],
+        "title": "Consent"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message_en": {
+            "type": "string",
+            "title": "Message En"
+          },
+          "message_hi": {
+            "type": "string",
+            "title": "Message Hi"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message_en",
+          "message_hi"
+        ],
+        "title": "ErrorDetail"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "KnownCondition": {
+        "type": "string",
+        "enum": [
+          "hypertension",
+          "diabetes",
+          "known_heart_disease",
+          "other"
+        ],
+        "title": "KnownCondition"
+      },
+      "Label": {
+        "type": "string",
+        "enum": [
+          "normal",
+          "needs_checkup",
+          "unclear"
+        ],
+        "title": "Label"
+      },
+      "Lang": {
+        "type": "string",
+        "enum": [
+          "en",
+          "hi"
+        ],
+        "title": "Lang"
+      },
+      "Location": {
+        "type": "string",
+        "enum": [
+          "MV",
+          "AV",
+          "PV",
+          "TV"
+        ],
+        "title": "Location"
+      },
+      "LocationResult": {
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "abnormal_probability": {
+            "type": "number",
+            "title": "Abnormal Probability"
+          },
+          "quality_score": {
+            "type": "number",
+            "title": "Quality Score"
+          },
+          "heatmap_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heatmap Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "location",
+          "abnormal_probability",
+          "quality_score",
+          "heatmap_url"
+        ],
+        "title": "LocationResult"
+      },
+      "Patient": {
+        "properties": {
+          "age_years": {
+            "type": "integer",
+            "maximum": 110.0,
+            "minimum": 0.0,
+            "title": "Age Years"
+          },
+          "sex": {
+            "$ref": "#/components/schemas/Sex"
+          },
+          "height_cm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 250.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Cm"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 300.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "symptoms": {
+            "items": {
+              "$ref": "#/components/schemas/Symptom"
+            },
+            "type": "array",
+            "title": "Symptoms",
+            "default": []
+          },
+          "known_conditions": {
+            "items": {
+              "$ref": "#/components/schemas/KnownCondition"
+            },
+            "type": "array",
+            "title": "Known Conditions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "age_years",
+          "sex"
+        ],
+        "title": "Patient"
+      },
+      "Platform": {
+        "type": "string",
+        "enum": [
+          "ios",
+          "android"
+        ],
+        "title": "Platform"
+      },
+      "Quality": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "duration_s": {
+            "type": "number",
+            "title": "Duration S"
+          },
+          "heart_rate_bpm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heart Rate Bpm"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/QualityIssue"
+            },
+            "type": "array",
+            "title": "Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "duration_s",
+          "heart_rate_bpm",
+          "issues"
+        ],
+        "title": "Quality"
+      },
+      "QualityIssue": {
+        "type": "string",
+        "enum": [
+          "too_short",
+          "too_quiet",
+          "clipping",
+          "too_noisy",
+          "no_heartbeat_detected",
+          "heart_rate_out_of_range"
+        ],
+        "title": "QualityIssue"
+      },
+      "RecordingSummary": {
+        "properties": {
+          "recording_id": {
+            "type": "string",
+            "title": "Recording Id"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recording_id",
+          "location",
+          "source",
+          "platform",
+          "accepted",
+          "quality",
+          "created_at"
+        ],
+        "title": "RecordingSummary"
+      },
+      "RejectedRecording": {
+        "properties": {
+          "recording_id": {
+            "type": "string",
+            "title": "Recording Id"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "screening_status": {
+            "$ref": "#/components/schemas/ScreeningStatus"
+          },
+          "message_en": {
+            "type": "string",
+            "title": "Message En"
+          },
+          "message_hi": {
+            "type": "string",
+            "title": "Message Hi"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recording_id",
+          "location",
+          "accepted",
+          "quality",
+          "screening_status",
+          "message_en",
+          "message_hi"
+        ],
+        "title": "RejectedRecording"
+      },
+      "ReportSummary": {
+        "properties": {
+          "report_id": {
+            "type": "string",
+            "title": "Report Id"
+          },
+          "summary_en": {
+            "type": "string",
+            "title": "Summary En"
+          },
+          "summary_hi": {
+            "type": "string",
+            "title": "Summary Hi"
+          }
+        },
+        "type": "object",
+        "required": [
+          "report_id",
+          "summary_en",
+          "summary_hi"
+        ],
+        "title": "ReportSummary"
+      },
+      "ScreeningCreate": {
+        "properties": {
+          "language": {
+            "$ref": "#/components/schemas/Lang"
+          },
+          "consent": {
+            "$ref": "#/components/schemas/Consent"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/Patient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "language",
+          "consent",
+          "patient"
+        ],
+        "title": "ScreeningCreate"
+      },
+      "ScreeningCreated": {
+        "properties": {
+          "screening_id": {
+            "type": "string",
+            "title": "Screening Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScreeningStatus"
+          },
+          "required_locations": {
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            },
+            "type": "array",
+            "title": "Required Locations"
+          },
+          "optional_locations": {
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            },
+            "type": "array",
+            "title": "Optional Locations"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "screening_id",
+          "status",
+          "required_locations",
+          "optional_locations",
+          "created_at"
+        ],
+        "title": "ScreeningCreated"
+      },
+      "ScreeningDetail": {
+        "properties": {
+          "screening_id": {
+            "type": "string",
+            "title": "Screening Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScreeningStatus"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Lang"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/Patient"
+          },
+          "recordings": {
+            "items": {
+              "$ref": "#/components/schemas/RecordingSummary"
+            },
+            "type": "array",
+            "title": "Recordings"
+          },
+          "analysis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalyzeResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "screening_id",
+          "status",
+          "language",
+          "created_at",
+          "patient",
+          "recordings",
+          "analysis"
+        ],
+        "title": "ScreeningDetail"
+      },
+      "ScreeningList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScreeningListItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ScreeningList"
+      },
+      "ScreeningListItem": {
+        "properties": {
+          "screening_id": {
+            "type": "string",
+            "title": "Screening Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScreeningStatus"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Label"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "screening_id",
+          "created_at",
+          "status",
+          "label"
+        ],
+        "title": "ScreeningListItem"
+      },
+      "ScreeningResult": {
+        "properties": {
+          "label": {
+            "$ref": "#/components/schemas/Label"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "abnormal_probability": {
+            "type": "number",
+            "title": "Abnormal Probability"
+          },
+          "heart_rate_bpm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heart Rate Bpm"
+          },
+          "per_location": {
+            "items": {
+              "$ref": "#/components/schemas/LocationResult"
+            },
+            "type": "array",
+            "title": "Per Location"
+          },
+          "used_patient_data": {
+            "type": "boolean",
+            "title": "Used Patient Data"
+          },
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "confidence",
+          "abnormal_probability",
+          "heart_rate_bpm",
+          "per_location",
+          "used_patient_data",
+          "model_version"
+        ],
+        "title": "ScreeningResult"
+      },
+      "ScreeningStatus": {
+        "type": "string",
+        "enum": [
+          "awaiting_recordings",
+          "ready",
+          "analyzing",
+          "completed",
+          "failed"
+        ],
+        "title": "ScreeningStatus"
+      },
+      "Sex": {
+        "type": "string",
+        "enum": [
+          "male",
+          "female",
+          "other"
+        ],
+        "title": "Sex"
+      },
+      "Source": {
+        "type": "string",
+        "enum": [
+          "phone_mic",
+          "stethoscope_mic"
+        ],
+        "title": "Source"
+      },
+      "Symptom": {
+        "type": "string",
+        "enum": [
+          "chest_pain",
+          "breathlessness",
+          "palpitations",
+          "fatigue",
+          "fainting",
+          "swelling"
+        ],
+        "title": "Symptom"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
