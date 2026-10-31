@@ -42,6 +42,7 @@ export default function ResultScreen() {
   const fromHistory = Boolean(id);
 
   const [loaded, setLoaded] = useState<ResultView | null>(null);
+  const [loadedLabel, setLoadedLabel] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [explanationLang, setExplanationLang] = useState<Lang>(lang);
 
@@ -52,12 +53,13 @@ export default function ResultScreen() {
       .getScreening(id)
       .then((detail) => {
         if (cancelled) return;
-        const { result, explanation, disclaimer, completed_at } = detail;
-        if (result && explanation && disclaimer && completed_at) {
-          setLoaded({ result, explanation, disclaimer, completed_at });
-        } else {
-          setLoadFailed(true);
-        }
+        if (detail.analysis) setLoaded(detail.analysis);
+        else setLoadFailed(true);
+        // Snapshots never hold the nickname. The result still shows without it.
+        api
+          .getPatient(detail.patient_id)
+          .then((patient) => !cancelled && setLoadedLabel(patient.label))
+          .catch(() => {});
       })
       .catch(() => !cancelled && setLoadFailed(true));
     return () => {
@@ -66,6 +68,7 @@ export default function ResultScreen() {
   }, [id]);
 
   const view: ResultView | null = fromHistory ? loaded : latest;
+  const patientLabel = fromHistory ? loadedLabel : (session?.patient.label ?? null);
   const goHome = () => router.dismissTo('/');
   const back = fromHistory ? () => router.back() : goHome;
 
@@ -116,7 +119,7 @@ export default function ResultScreen() {
       router.replace({ pathname: '/guide', params: { location: session.required_locations[0] } });
     } else {
       router.dismissTo('/');
-      router.push('/consent');
+      router.push('/patients');
     }
   }
 
@@ -136,7 +139,7 @@ export default function ResultScreen() {
         </>
       }>
       <AppText size={13} color={Palette.ink3}>
-        {`${date}  ·  ${time}`}
+        {[patientLabel, date, time].filter(Boolean).join('  ·  ')}
       </AppText>
 
       <View

@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
@@ -21,6 +21,9 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export default function HistoryScreen() {
   const { t, lang } = useScreening();
+  // Set when opened for one patient; otherwise lists every screening on this account.
+  const { patientId } = useLocalSearchParams<{ patientId?: string }>();
+  const [patientLabel, setPatientLabel] = useState<string | null>(null);
   const [items, setItems] = useState<ScreeningListItem[] | null>(null);
   // When the list was fetched, for splitting "this week" from "earlier".
   const [loadedAt, setLoadedAt] = useState(0);
@@ -29,15 +32,27 @@ export default function HistoryScreen() {
   const load = useCallback(() => {
     setFailed(false);
     api
-      .listScreenings()
+      .listScreenings(patientId)
       .then((list) => {
         setItems(list);
         setLoadedAt(Date.now());
       })
       .catch(() => setFailed(true));
-  }, []);
+  }, [patientId]);
 
   useFocusEffect(load);
+
+  useEffect(() => {
+    if (!patientId) return;
+    let cancelled = false;
+    api
+      .getPatient(patientId)
+      .then((patient) => !cancelled && setPatientLabel(patient.label))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [patientId]);
 
   function confirmDelete(id: string, swipeable: SwipeableMethods) {
     Alert.alert(t('history.deleteTitle'), t('history.deleteBody'), [
@@ -53,6 +68,26 @@ export default function HistoryScreen() {
         },
       },
     ]);
+  }
+
+  function confirmDeletePatient(id: string) {
+    Alert.alert(
+      t('history.deletePatientTitle', { name: patientLabel ?? '' }),
+      t('history.deletePatientBody'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('history.delete'),
+          style: 'destructive',
+          onPress: () => {
+            api
+              .deletePatient(id)
+              .then(() => router.back())
+              .catch(() => setFailed(true));
+          },
+        },
+      ]
+    );
   }
 
   const recent = items?.filter((i) => loadedAt - new Date(i.created_at).getTime() < WEEK_MS) ?? [];
@@ -110,10 +145,28 @@ export default function HistoryScreen() {
   return (
     <Screen
       title={t('history.title')}
-      footer={<Button label={t('history.new')} onPress={() => router.push('/consent')} />}>
+      footer={
+        <>
+          <Button
+            label={t('history.new')}
+            onPress={() =>
+              patientId
+                ? router.push({ pathname: '/consent', params: { patientId } })
+                : router.push('/patients')
+            }
+          />
+          {patientId && patientLabel && (
+            <Button
+              label={t('history.deletePatient')}
+              variant="ghost"
+              onPress={() => confirmDeletePatient(patientId)}
+            />
+          )}
+        </>
+      }>
       <View style={styles.heading}>
         <AppText size={28} leading={34} weight="medium" tracking={-0.448}>
-          {t('history.heading')}
+          {patientLabel ? t('history.patientHeading', { name: patientLabel }) : t('history.heading')}
         </AppText>
         <AppText size={15} leading={22} color={Palette.ink2}>
           {t('history.sub')}

@@ -5,13 +5,16 @@ import type {
   CreateScreeningResponse,
   Lang,
   Location,
+  Patient,
   RecordingResponse,
   Source,
   Symptom,
 } from '@/api/types';
+import { isChestLocation } from '@/constants/chest-locations';
 import { translate, type StringKey } from '@/i18n/strings';
 
 type Session = CreateScreeningResponse & {
+  patient: Patient;
   symptoms: Symptom[];
   recordings: Partial<Record<Location, RecordingResponse>>;
 };
@@ -26,13 +29,18 @@ type ScreeningState = {
 
   /** The screening being recorded right now. */
   session: Session | null;
-  startSession: (created: CreateScreeningResponse, symptoms: Symptom[]) => void;
+  startSession: (created: CreateScreeningResponse, patient: Patient, symptoms: Symptom[]) => void;
   saveRecording: (recording: RecordingResponse) => void;
 
   /** Latest analyze response, shown on the result screen. */
   result: AnalyzeResponse | null;
   setResult: (result: AnalyzeResponse | null) => void;
 };
+
+/** Analyze needs one accepted chest recording, so the neck step only skips once there is one. */
+export function hasAcceptedChest(session: Session) {
+  return Object.values(session.recordings).some((r) => r.accepted && isChestLocation(r.location));
+}
 
 const ScreeningContext = createContext<ScreeningState | null>(null);
 
@@ -49,8 +57,8 @@ export function ScreeningProvider({ children }: { children: ReactNode }) {
     source,
     setSource,
     session,
-    startSession: (created, symptoms) => {
-      setSession({ ...created, symptoms, recordings: {} });
+    startSession: (created, patient, symptoms) => {
+      setSession({ ...created, patient, symptoms, recordings: {} });
       setResult(null);
     },
     saveRecording: (recording) =>

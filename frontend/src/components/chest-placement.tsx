@@ -3,23 +3,24 @@ import { StyleSheet, View } from 'react-native';
 import { AppText } from './app-text';
 import { Art } from './art';
 
-import type { Location } from '@/api/types';
+import type { ChestLocation, Location } from '@/api/types';
 import { Palette } from '@/constants/theme';
 import { useScreening } from '@/state/screening';
 
 // Marker centres on the 342 x 236 Figma canvas. The torso faces the viewer,
 // so the person's left side is on the right of the drawing.
-const MARKERS: Record<Location, { x: number; y: number }> = {
+const CHEST_MARKERS: Record<ChestLocation, { x: number; y: number }> = {
   AV: { x: 148.35, y: 117.35 },
   PV: { x: 192.35, y: 117.35 },
   TV: { x: 180.35, y: 171.35 },
   MV: { x: 224.35, y: 187.35 },
 };
+const MARKERS = { ...CHEST_MARKERS, NK: { x: 184.35, y: 44.35 } };
 
 const CANVAS_WIDTH = 342;
 const CANVAS_HEIGHT = 236;
 
-/** Front-of-chest illustration with the phone drawn on the current spot. */
+/** Front-of-body illustration with the phone drawn on the current spot. */
 export function ChestPlacement({ current }: { current: Location }) {
   const { t } = useScreening();
   const active = MARKERS[current];
@@ -29,7 +30,7 @@ export function ChestPlacement({ current }: { current: Location }) {
       <View style={styles.canvas}>
         <Art name="torso" style={styles.torso} />
 
-        {(Object.keys(MARKERS) as Location[])
+        {(Object.keys(CHEST_MARKERS) as ChestLocation[])
           .filter((location) => location !== current)
           .map((location) => {
             const { x, y } = MARKERS[location];
@@ -49,11 +50,13 @@ export function ChestPlacement({ current }: { current: Location }) {
 
         <Art name="marker-halo" style={[styles.abs, { left: active.x - 20, top: active.y - 20 }]} />
         <Art name="marker-active" style={[styles.abs, { left: active.x - 9, top: active.y - 9 }]} />
-        {/* The phone's bottom microphone sits on the marker. */}
-        <Art
-          name="phone-on-chest"
-          style={[styles.abs, { left: active.x - 17, top: active.y - 66 }]}
-        />
+        {/* The phone's bottom microphone sits on the marker. The neck is too near the top to fit it. */}
+        {current !== 'NK' && (
+          <Art
+            name="phone-on-chest"
+            style={[styles.abs, { left: active.x - 17, top: active.y - 66 }]}
+          />
+        )}
         <View style={[styles.abs, styles.tag, { left: active.x + 25, top: active.y - 6 }]}>
           <AppText size={12} weight="medium" color={Palette.onDark}>
             {t('guide.placeHere')}

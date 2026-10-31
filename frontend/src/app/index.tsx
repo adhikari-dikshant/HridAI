@@ -117,7 +117,7 @@ export default function WelcomeScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <Button label={t('welcome.start')} variant="light" onPress={() => router.push('/consent')} />
+          <Button label={t('welcome.start')} variant="light" onPress={() => router.push('/patients')} />
           <AppText size={12} color="rgba(255, 255, 255, 0.5)" align="center">
             {isMockApi ? `${t('welcome.note')} · ${t('mockBanner')}` : t('welcome.note')}
           </AppText>

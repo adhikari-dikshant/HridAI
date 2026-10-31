@@ -1,7 +1,6 @@
-import type { Lang, Location } from '@/api/types';
+import type { ChestLocation, Lang, Location } from '@/api/types';
 
-// Same codes as the CirCor dataset and the API.
-export type ChestLocation = Location;
+// Chest codes are the same as the CirCor dataset and the API; NK (neck) is ours.
 
 type LocationInfo = {
   name: string;
@@ -78,6 +77,32 @@ export const ChestLocations: Record<ChestLocation, Record<Lang, LocationInfo>> =
   },
 };
 
+// Over the carotid artery: light touch only, and never tell the person to press.
+// A doctor should review this wording before real users.
+export const Spots: Record<Location, Record<Lang, LocationInfo>> = {
+  ...ChestLocations,
+  NK: {
+    en: {
+      name: 'Neck',
+      short: 'Beside the voice box',
+      where:
+        'One side of the neck, beside the voice box, at mid-neck height. Rest the phone’s bottom mic lightly on bare skin. Do not press.',
+      placement: 'beside the voice box',
+    },
+    hi: {
+      name: 'गर्दन',
+      short: 'स्वर-यंत्र के बगल में',
+      where:
+        'गर्दन की एक तरफ़, स्वर-यंत्र के बगल में, गर्दन के बीच की ऊँचाई पर। फ़ोन का नीचे का माइक खुली त्वचा पर हल्के से रखें। दबाएँ नहीं।',
+      placement: 'स्वर-यंत्र के बगल में',
+    },
+  },
+};
+
 export function isChestLocation(value: unknown): value is ChestLocation {
   return typeof value === 'string' && value in ChestLocations;
+}
+
+export function isSpot(value: unknown): value is Location {
+  return typeof value === 'string' && value in Spots;
 }

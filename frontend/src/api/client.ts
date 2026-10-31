@@ -4,17 +4,22 @@ import { mockApi } from './mock';
 import type {
   AnalyzeResponse,
   ApiErrorBody,
+  CreatePatientRequest,
   CreateScreeningRequest,
   CreateScreeningResponse,
   Location,
+  Patient,
   RecordingResponse,
   ReportResponse,
   ScreeningDetail,
   ScreeningListItem,
   Source,
+  UpdatePatientRequest,
 } from './types';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+// Local backend with AUTH_MODE=dev only. Never set this in a production build.
+const DEV_UID = process.env.EXPO_PUBLIC_DEV_UID;
 const ANALYZE_TIMEOUT_MS = 45_000;
 
 /** Without a backend URL the app runs against an in-memory mock. */
@@ -31,7 +36,7 @@ export class ApiError extends Error {
 
 // TODO: return the Firebase ID token once anonymous auth is added.
 async function getAuthToken(): Promise<string | null> {
-  return null;
+  return DEV_UID ? `dev:${DEV_UID}` : null;
 }
 
 async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: number): Promise<T> {
@@ -59,9 +64,9 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs?: numb
   }
 }
 
-function json(body: unknown): RequestInit {
+function json(body: unknown, method = 'POST'): RequestInit {
   return {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   };
@@ -82,6 +87,18 @@ export type UploadReportInput = {
 };
 
 const realApi = {
+  listPatients: () => request<{ items: Patient[] }>('/patients?limit=100').then((r) => r.items),
+
+  getPatient: (patientId: string) => request<Patient>(`/patients/${patientId}`),
+
+  createPatient: (body: CreatePatientRequest) => request<Patient>('/patients', json(body)),
+
+  updatePatient: (patientId: string, body: UpdatePatientRequest) =>
+    request<Patient>(`/patients/${patientId}`, json(body, 'PATCH')),
+
+  deletePatient: (patientId: string) =>
+    request<void>(`/patients/${patientId}`, { method: 'DELETE' }),
+
   createScreening: (body: CreateScreeningRequest) =>
     request<CreateScreeningResponse>('/screenings', json(body)),
 
@@ -127,8 +144,10 @@ const realApi = {
 
   getScreening: (screeningId: string) => request<ScreeningDetail>(`/screenings/${screeningId}`),
 
-  listScreenings: () =>
-    request<{ items: ScreeningListItem[] }>('/screenings?limit=20').then((r) => r.items),
+  listScreenings: (patientId?: string) =>
+    request<{ items: ScreeningListItem[] }>(
+      `/screenings?limit=20${patientId ? `&patient_id=${patientId}` : ''}`
+    ).then((r) => r.items),
 
   deleteScreening: (screeningId: string) =>
     request<void>(`/screenings/${screeningId}`, { method: 'DELETE' }),

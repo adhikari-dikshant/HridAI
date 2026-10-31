@@ -10,11 +10,11 @@ import { IconTile } from '@/components/icon-tile';
 import { Note } from '@/components/note';
 import { Screen } from '@/components/screen';
 import { StepProgress } from '@/components/step-progress';
-import { ChestLocations, isChestLocation } from '@/constants/chest-locations';
+import { Spots, isSpot } from '@/constants/chest-locations';
 import { Palette, Shadow } from '@/constants/theme';
 import type { StringKey } from '@/i18n/strings';
 import { Strings } from '@/i18n/strings';
-import { useScreening } from '@/state/screening';
+import { hasAcceptedChest, useScreening } from '@/state/screening';
 
 const ISSUES: QualityIssue[] = [
   'too_short',
@@ -40,15 +40,22 @@ export default function QualityScreen() {
   // `issue` is set when the phone's own check rejected the recording before upload.
   const params = useLocalSearchParams<{ location?: string; issue?: string }>();
 
-  if (!session || !isChestLocation(params.location)) return <Redirect href="/" />;
+  if (!session || !isSpot(params.location)) return <Redirect href="/" />;
 
   const location = params.location;
   const recording = session.recordings[location];
   const localIssue = isIssue(params.issue) ? params.issue : null;
   if (!localIssue && !recording) return <Redirect href="/" />;
 
-  const spot = ChestLocations[location][lang];
+  const spot = Spots[location][lang];
   const recordAgain = () => router.replace({ pathname: '/record', params: { location } });
+  const skipNeck = (
+    <Button
+      label={t('guide.skipNeck')}
+      variant="ghost"
+      onPress={() => router.push('/reports')}
+    />
+  );
 
   if (localIssue || !recording?.accepted) {
     const issue = localIssue ?? recording?.quality.issues[0] ?? 'too_noisy';
@@ -73,6 +80,7 @@ export default function QualityScreen() {
               variant="ghost"
               onPress={() => router.replace({ pathname: '/guide', params: { location } })}
             />
+            {location === 'NK' && hasAcceptedChest(session) && skipNeck}
           </>
         }>
         <StepProgress step={3} name={t('guide.step')} />
@@ -82,7 +90,7 @@ export default function QualityScreen() {
             <Art name="icon-mute-warn-large" box={40} />
           </View>
           <AppText size={28} weight="medium" tracking={-0.448} align="center">
-            {t(`issue.${issue}`)}
+            {t(location === 'NK' && issue === 'too_quiet' ? 'issue.neck_too_quiet' : `issue.${issue}`)}
           </AppText>
           <AppText size={15} leading={22} color={Palette.ink2} align="center">
             {lang === 'hi' ? messageHi : messageEn}
@@ -109,7 +117,7 @@ export default function QualityScreen() {
   }
 
   const next = session.required_locations.find((l) => !session.recordings[l]?.accepted);
-  const nextName = next ? ChestLocations[next][lang].name : null;
+  const nextName = next ? Spots[next][lang].name : null;
   const bpm = recording.quality.heart_rate_bpm;
   const optional = session.optional_locations.filter((l) => !session.recordings[l]?.accepted);
 
@@ -131,6 +139,7 @@ export default function QualityScreen() {
             variant="ghost"
             onPress={recordAgain}
           />
+          {next === 'NK' && skipNeck}
         </>
       }>
       <StepProgress step={3} name={t('guide.step')} />
@@ -177,8 +186,8 @@ export default function QualityScreen() {
                   background={done ? Palette.okSoft : Palette.surface2}
                 />
               }
-              title={ChestLocations[l][lang].name}
-              subtitle={ChestLocations[l][lang].short}
+              title={Spots[l][lang].name}
+              subtitle={Spots[l][lang].short}
               divider={i < session.required_locations.length - 1 || optional.length > 0}
               trailing={
                 <AppText
@@ -194,7 +203,7 @@ export default function QualityScreen() {
         {optional.length > 0 && (
           <CardRow
             leading={<IconTile icon="icon-map-muted" />}
-            title={optional.map((l) => ChestLocations[l][lang].name).join(' & ')}
+            title={optional.map((l) => Spots[l][lang].name).join(' & ')}
             titleColor={Palette.ink2}
             subtitle={t('quality.optionalSpots')}
             trailing={

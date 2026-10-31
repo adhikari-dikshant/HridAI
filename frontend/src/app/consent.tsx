@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
@@ -7,6 +7,7 @@ import { Art } from '@/components/art';
 import { Button } from '@/components/button';
 import { Card, CardRow } from '@/components/card';
 import { IconTile } from '@/components/icon-tile';
+import { Note } from '@/components/note';
 import { Screen } from '@/components/screen';
 import { StepProgress } from '@/components/step-progress';
 import { Palette } from '@/constants/theme';
@@ -20,6 +21,7 @@ const POINTS = [
 
 export default function ConsentScreen() {
   const { t } = useScreening();
+  const { patientId } = useLocalSearchParams<{ patientId?: string }>();
   const [agreed, setAgreed] = useState(false);
 
   return (
@@ -30,7 +32,9 @@ export default function ConsentScreen() {
           <Button
             label={t('consent.continue')}
             disabled={!agreed}
-            onPress={() => router.push('/patient')}
+            onPress={() =>
+              router.push({ pathname: '/patient', params: patientId ? { patientId } : {} })
+            }
           />
           <Pressable
             accessibilityRole="link"
@@ -75,6 +79,8 @@ export default function ConsentScreen() {
           />
         ))}
       </Card>
+
+      <Note text={t('consent.someoneElse')} />
 
       <Pressable
         accessibilityRole="checkbox"

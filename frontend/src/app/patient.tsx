@@ -1,9 +1,17 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, TextInput, View } from 'react-native';
 
 import { api } from '@/api/client';
-import type { KnownCondition, Patient, Sex, Symptom } from '@/api/types';
+import type {
+  Consent,
+  KnownCondition,
+  Patient,
+  PatientDetails,
+  Sex,
+  Symptom,
+  UpdatePatientRequest,
+} from '@/api/types';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { ChoiceChip } from '@/components/choice-chip';
@@ -13,6 +21,7 @@ import { StepProgress } from '@/components/step-progress';
 import { FontFamily, Palette } from '@/constants/theme';
 import { useScreening } from '@/state/screening';
 
+const CONSENT: Consent = { accepted: true, version: 'v1' };
 const SEXES: Sex[] = ['male', 'female', 'other'];
 const SYMPTOMS: Symptom[] = [
   'chest_pain',
@@ -26,7 +35,13 @@ const CONDITIONS: KnownCondition[] = ['hypertension', 'diabetes', 'known_heart_d
 
 export default function PatientScreen() {
   const { t, lang, startSession } = useScreening();
+  const { patientId } = useLocalSearchParams<{ patientId?: string }>();
 
+  // The profile on the server. Kept after creating one, so a retry never adds it twice.
+  const [saved, setSaved] = useState<Patient | null>(null);
+  const [loading, setLoading] = useState(Boolean(patientId));
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [label, setLabel] = useState('');
   const [age, setAge] = useState('');
   const [sex, setSex] = useState<Sex | null>(null);
   const [height, setHeight] = useState('');
@@ -40,36 +55,88 @@ export default function PatientScreen() {
   const ageYears = Number(age);
   const ageValid = age.trim() !== '' && Number.isInteger(ageYears) && ageYears >= 0 && ageYears <= 110;
 
+  useEffect(() => {
+    if (!patientId) return;
+    let cancelled = false;
+    api
+      .getPatient(patientId)
+      .then((patient) => {
+        if (cancelled) return;
+        setSaved(patient);
+        setLabel(patient.label);
+        setAge(String(patient.age_years));
+        setSex(patient.sex);
+        setHeight(patient.height_cm?.toString() ?? '');
+        setWeight(patient.weight_kg?.toString() ?? '');
+        setConditions(patient.known_conditions);
+      })
+      .catch(() => !cancelled && setLoadFailed(true))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [patientId]);
+
+  async function savePatient(details: PatientDetails) {
+    if (!saved) return api.createPatient({ consent: CONSENT, ...details });
+
+    const changes: UpdatePatientRequest = Object.fromEntries(
+      Object.entries(details).filter(
+        ([key, value]) =>
+          JSON.stringify(value) !== JSON.stringify(saved[key as keyof PatientDetails])
+      )
+    );
+    return Object.keys(changes).length > 0 ? api.updatePatient(saved.patient_id, changes) : saved;
+  }
+
   async function submit() {
-    if (!ageValid || !sex) {
+    const trimmedLabel = label.trim();
+    if (!trimmedLabel || !ageValid || !sex) {
       setShowErrors(true);
       return;
     }
 
-    const patient: Patient = {
-      age_years: ageYears,
-      sex,
-      height_cm: toNumber(height),
-      weight_kg: toNumber(weight),
-      symptoms,
-      known_conditions: conditions,
-    };
-
     setSubmitting(true);
     setError(null);
     try {
+      const patient = await savePatient({
+        label: trimmedLabel,
+        age_years: ageYears,
+        sex,
+        height_cm: toNumber(height) ?? null,
+        weight_kg: toNumber(weight) ?? null,
+        known_conditions: conditions,
+      });
+      setSaved(patient);
       const created = await api.createScreening({
         language: lang,
-        consent: { accepted: true, version: 'v1' },
-        patient,
+        consent: CONSENT,
+        patient_id: patient.patient_id,
+        symptoms,
       });
-      startSession(created, symptoms);
+      startSession(created, patient, symptoms);
       router.push({ pathname: '/guide', params: { location: created.required_locations[0] } });
     } catch {
       setError(t('genericError'));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (loading || loadFailed) {
+    return (
+      <Screen title={t('patient.title')} centered>
+        <View style={styles.center}>
+          {loading ? (
+            <ActivityIndicator color={Palette.brand} />
+          ) : (
+            <AppText color={Palette.ink2} align="center">
+              {t('genericError')}
+            </AppText>
+          )}
+        </View>
+      </Screen>
+    );
   }
 
   return (
@@ -86,6 +153,23 @@ export default function PatientScreen() {
         <AppText size={15} leading={22} color={Palette.ink2}>
           {t('patient.sub')}
         </AppText>
+      </View>
+
+      <View style={styles.group}>
+        <FieldLabel label={t('patient.label')} required />
+        <View style={[styles.input, showErrors && !label.trim() && styles.inputError]}>
+          <TextInput
+            value={label}
+            onChangeText={setLabel}
+            maxLength={40}
+            autoCorrect={false}
+            accessibilityLabel={t('patient.label')}
+            placeholder={t('patient.labelHint')}
+            placeholderTextColor={Palette.ink3}
+            style={styles.inputText}
+          />
+        </View>
+        {showErrors && !label.trim() && <ErrorText text={t('patient.labelError')} />}
       </View>
 
       <Field
@@ -228,6 +312,9 @@ function toNumber(text: string) {
 }
 
 const styles = StyleSheet.create({
+  center: {
+    alignItems: 'center',
+  },
   heading: {
     gap: 8,
   },

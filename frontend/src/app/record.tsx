@@ -9,7 +9,7 @@ import { Button } from '@/components/button';
 import { LevelBars } from '@/components/level-bars';
 import { Screen } from '@/components/screen';
 import { TimerRing } from '@/components/timer-ring';
-import { ChestLocations, isChestLocation } from '@/constants/chest-locations';
+import { Spots, isSpot } from '@/constants/chest-locations';
 import { Palette } from '@/constants/theme';
 import { useHeartRecorder } from '@/hooks/use-heart-recorder';
 import type { StringKey } from '@/i18n/strings';
@@ -37,7 +37,7 @@ export default function RecordScreen() {
   const startedRef = useRef(false);
   const handledUriRef = useRef<string | null>(null);
 
-  const location = isChestLocation(params.location) ? params.location : null;
+  const location = isSpot(params.location) ? params.location : null;
   const recording = rec.status === 'done' ? rec.recording : null;
 
   useEffect(() => {
@@ -55,7 +55,8 @@ export default function RecordScreen() {
 
   if (!session || !location) return <Redirect href="/" />;
 
-  const spot = ChestLocations[location][lang];
+  const spot = Spots[location][lang];
+  const neck = location === 'NK';
   const spotIndex = session.required_locations.indexOf(location);
   const totalSpots = session.required_locations.length;
   const isRecording = rec.status === 'recording' || rec.status === 'stopping';
@@ -183,7 +184,7 @@ export default function RecordScreen() {
         <View style={styles.hint}>
           <Art name="icon-micoff-white" box={20} />
           <AppText size={14} leading={20} color="rgba(255, 255, 255, 0.85)" style={styles.flex}>
-            {t('record.stayQuiet')}
+            {t(neck ? 'record.stayQuietNeck' : 'record.stayQuiet')}
           </AppText>
         </View>
       </>
@@ -207,10 +208,10 @@ export default function RecordScreen() {
         </View>
         <View style={styles.copy}>
           <AppText size={24} weight="medium" color={Palette.onDark} tracking={-0.24} align="center">
-            {t('record.press')}
+            {t(neck ? 'record.restNeck' : 'record.press')}
           </AppText>
           <AppText size={15} leading={22} color="rgba(255, 255, 255, 0.7)" align="center">
-            {t('record.hint', { placement: spot.placement })}
+            {t(neck ? 'record.hintNeck' : 'record.hint', { placement: spot.placement })}
           </AppText>
         </View>
         <View style={styles.tips}>

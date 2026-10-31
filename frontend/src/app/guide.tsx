@@ -8,13 +8,14 @@ import { Art, type ArtworkName } from '@/components/art';
 import { Button } from '@/components/button';
 import { ChestPlacement } from '@/components/chest-placement';
 import { IconTile } from '@/components/icon-tile';
+import { Note } from '@/components/note';
 import { Screen } from '@/components/screen';
 import { Segmented } from '@/components/segmented';
 import { StepProgress } from '@/components/step-progress';
-import { ChestLocations, isChestLocation } from '@/constants/chest-locations';
+import { Spots, isSpot } from '@/constants/chest-locations';
 import { Palette } from '@/constants/theme';
 import type { StringKey } from '@/i18n/strings';
-import { useScreening } from '@/state/screening';
+import { hasAcceptedChest, useScreening } from '@/state/screening';
 
 const SOURCES: { value: Source; icon: ArtworkName }[] = [
   { value: 'phone_mic', icon: 'icon-phone' },
@@ -32,16 +33,28 @@ const TIPS: { icon: ArtworkName; text: StringKey }[][] = [
   ],
 ];
 
+const NECK_TIPS: { icon: ArtworkName; text: StringKey }[][] = [
+  [
+    { icon: 'icon-wind', text: 'guide.neckTip1' },
+    { icon: 'icon-mute', text: 'guide.tip2' },
+  ],
+  [
+    { icon: 'icon-phone', text: 'guide.neckTip3' },
+    { icon: 'icon-micoff', text: 'guide.neckTip4' },
+  ],
+];
+
 const ORDINALS: StringKey[] = ['guide.ordinal1', 'guide.ordinal2', 'guide.ordinal3', 'guide.ordinal4'];
 
 export default function GuideScreen() {
   const { t, lang, session, source, setSource } = useScreening();
   const params = useLocalSearchParams<{ location?: string }>();
 
-  if (!session || !isChestLocation(params.location)) return <Redirect href="/" />;
+  if (!session || !isSpot(params.location)) return <Redirect href="/" />;
 
   const location = params.location;
-  const spot = ChestLocations[location][lang];
+  const spot = Spots[location][lang];
+  const neck = location === 'NK';
   // Optional spots only show up here once the person chooses to record one.
   const spots: Location[] = session.required_locations.includes(location)
     ? session.required_locations
@@ -60,7 +73,18 @@ export default function GuideScreen() {
     <Screen
       title={t('guide.title')}
       gap={18}
-      footer={<Button label={t('guide.start')} onPress={start} />}>
+      footer={
+        <>
+          <Button label={t('guide.start')} onPress={start} />
+          {neck && hasAcceptedChest(session) && (
+            <Button
+              label={t('guide.skipNeck')}
+              variant="ghost"
+              onPress={() => router.push('/reports')}
+            />
+          )}
+        </>
+      }>
       <StepProgress step={3} name={t('guide.step')} />
 
       <View style={styles.spots}>
@@ -86,7 +110,7 @@ export default function GuideScreen() {
               </View>
               <View>
                 <AppText size={15} weight="medium" color={current ? Palette.ink : Palette.ink2}>
-                  {ChestLocations[option][lang].name}
+                  {Spots[option][lang].name}
                 </AppText>
                 <AppText
                   size={12}
@@ -110,6 +134,8 @@ export default function GuideScreen() {
         </AppText>
       </View>
 
+      {neck && <Note tone="alert" text={t('guide.neckSafety')} />}
+
       <View style={styles.group}>
         <AppText size={14} weight="medium">
           {t('guide.source')}
@@ -129,7 +155,7 @@ export default function GuideScreen() {
         <AppText size={14} weight="medium">
           {t('guide.tips')}
         </AppText>
-        {TIPS.map((row, i) => (
+        {(neck ? NECK_TIPS : TIPS).map((row, i) => (
           <View key={i} style={styles.tipRow}>
             {row.map((tip) => (
               <View key={tip.text} style={styles.tip}>
@@ -149,10 +175,12 @@ export default function GuideScreen() {
 const styles = StyleSheet.create({
   spots: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   spot: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '45%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
