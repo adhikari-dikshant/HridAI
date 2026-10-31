@@ -462,7 +462,7 @@ screenings/{screening_id}/recordings/{recording_id}
 
 screenings/{screening_id}/reports/{report_id}
   storage_path, mime_type, summary_en, summary_hi, created_at</code></pre>
-<p>Composite indexes needed: <code>patients</code> on <code>owner_uid</code> + <code>last_activity_at</code>, and <code>screenings</code> on <code>owner_uid</code> + <code>patient_id</code> + <code>created_at</code>.</p>
+<p>Composite indexes needed: <code>patients</code> on <code>owner_uid</code> + <code>last_activity_at</code>, and <code>screenings</code> on <code>owner_uid</code> + <code>created_at</code>, and on <code>owner_uid</code> + <code>patient_id</code> + <code>created_at</code>.</p>
 <h3>Cloud Storage</h3>
 <pre><code>gs://&lt;bucket&gt;/screenings/{screening_id}/recordings/{recording_id}.m4a   // original upload
 gs://&lt;bucket&gt;/screenings/{screening_id}/recordings/{recording_id}.wav   // converted, 4 kHz mono

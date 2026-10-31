@@ -126,7 +126,8 @@ class InMemoryRepository:
 
     def list_recordings(self, screening_id: str) -> list[dict]:
         with self._lock:
-            return deepcopy(list(self._recordings[screening_id].values()))
+            recordings = self._recordings[screening_id].values()
+            return deepcopy(sorted(recordings, key=lambda recording: recording["created_at"]))
 
     def delete_recording(self, screening_id: str, recording_id: str) -> None:
         with self._lock:

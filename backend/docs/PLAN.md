@@ -182,7 +182,7 @@ This decides the audio constants, so it must finish before B4 and B5 freeze them
 
 Follow `DEPLOY.md`.
 
-- [ ] `Dockerfile`: pinned `python:3.11-slim-bookworm`, `ENV=prod`, `apt-get install --no-install-recommends ffmpeg`, non-root user, `uvicorn` on `$PORT`
+- [x] `Dockerfile`: pinned `python:3.11-slim-bookworm`, `ENV=prod`, `apt-get install --no-install-recommends ffmpeg`, non-root user, `uvicorn` on `$PORT`
 - [ ] One project for GCP and Firebase, budget alert, Firestore (native, asia-south1), data bucket (soft delete off, 30-day lifecycle rule), ML bucket *(user runs these)*
 - [ ] Dedicated service account: `roles/datastore.user` and `roles/aiplatform.user` on the project, `roles/storage.objectUser` on the data bucket only
 - [ ] Artifact Registry repository; build a tagged image, then deploy it (DEPLOY.md Stage A: `ENV=staging`, dev auth, memory storage, `--max-instances=1`)
@@ -192,14 +192,14 @@ Follow `DEPLOY.md`.
 
 ### B3 — Real auth and persistence (≈ 1 day)
 
-- [ ] Firebase Admin init with Application Default Credentials everywhere (`gcloud auth application-default login` locally; no `sa.json`)
-- [ ] `verify_id_token` (accept anonymous users; `check_revoked=False` for speed); `AUTH_MODE=dev` refused when `ENV=prod`
-- [ ] Analysis lock: set `analyzing` in a Firestore transaction with `analysis_started_at`; treat it as expired after 90 s so a crash or timeout can't block retries; a live lock → 409 `analysis_in_progress`
-- [ ] `FirestoreRepository` matching SPEC §3 collections (`patients`, `screenings`, sub-collections `recordings`, `reports`); list queries by `owner_uid` + `created_at desc`, `owner_uid` + `patient_id` + `created_at desc` and `owner_uid` + `last_activity_at desc` (create composite indexes; commit `firestore.indexes.json`)
-- [ ] `GCSBlobStore`: upload original + converted WAV, delete prefix, signed URL (15 min) for heatmaps (B9 only; add the token-creator role then)
-- [ ] Deny all client access: commit `firestore.rules`; the bucket uses uniform access + public access prevention, so IAM controls it
-- [ ] Delete cascades: Firestore sub-collections + `screenings/{id}/` storage prefix (soft delete must be off, or audio stays recoverable for 7 days)
-- [ ] Same API test-suite runs against memory backend in CI; a manual/opt-in test against real Firebase (`pytest -m cloud`)
+- [x] Firebase Admin init with Application Default Credentials everywhere (`gcloud auth application-default login` locally; no `sa.json`)
+- [x] `verify_id_token` (accept anonymous users; `check_revoked=False` for speed); `AUTH_MODE=dev` refused when `ENV=prod`
+- [x] Analysis lock: set `analyzing` in a Firestore transaction with `analysis_started_at`; treat it as expired after 90 s so a crash or timeout can't block retries; a live lock → 409 `analysis_in_progress`
+- [x] `FirestoreRepository` matching SPEC §3 collections (`patients`, `screenings`, sub-collections `recordings`, `reports`); list queries by `owner_uid` + `created_at desc`, `owner_uid` + `patient_id` + `created_at desc` and `owner_uid` + `last_activity_at desc` (create composite indexes; commit `firestore.indexes.json`)
+- [x] `GCSBlobStore`: upload original + converted WAV, delete prefix, signed URL (15 min) for heatmaps (B9 only; add the token-creator role then)
+- [x] Deny all client access: commit `firestore.rules`; the bucket uses uniform access + public access prevention, so IAM controls it
+- [x] Delete cascades: Firestore sub-collections + `screenings/{id}/` storage prefix (soft delete must be off, or audio stays recoverable for 7 days)
+- [x] Same API test-suite runs against memory backend in CI; a manual/opt-in test against real Firebase (`pytest -m cloud`)
 
 **Accept:** app dev's anonymous Firebase token works end-to-end on Cloud Run; data visible in Firestore console; delete leaves nothing behind.
 

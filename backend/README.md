@@ -30,6 +30,8 @@ uvicorn app.main:app --reload --port 8000
 
 Test: `pytest` · Lint: `ruff check .` · Full flow against a running server (needs PowerShell 7): `./scripts/smoke_test.ps1`
 
+Firestore, login and Storage tests need the Firebase emulators (Java 21 and `firebase-tools`). Start them with project `demo-hridai`, set `FIRESTORE_EMULATOR_HOST`, `FIREBASE_AUTH_EMULATOR_HOST`, `STORAGE_EMULATOR_HOST` and `TEST_STORAGE_BUCKET`, then run `pytest` and `pytest -m cloud`. Without them those tests are skipped.
+
 After changing the API, run `python -m scripts.export_openapi` and share `docs/openapi.json` with the app developer. After changing dependencies, run:
 
 ```powershell

@@ -6,8 +6,8 @@
 ## Current state
 
 - **Phase:** **B0 and B1 done.** The full v1 API, including patient profiles and neck recordings, runs in mock mode locally: 164 tests pass, ruff is clean, and `scripts/smoke_test.ps1` passed against a live server. Next phase is **B2** (`PLAN.md` §3).
-- **Not built yet:** `AUTH_MODE=firebase`, `DATA_BACKEND=firestore` and `MOCK_INFERENCE`/`MOCK_QUALITY=false` stop startup with `NotImplementedError` until B3–B5, and `ENV=prod` refuses the mock settings, so only `local` and `staging` can run today.
-- **Dockerfile:** not written yet (B2), so the container has never been built.
+- **Built and tested on Firebase emulators, not on real Google Cloud:** Firebase login, Firestore and Cloud Storage. Gemini is **not built yet** (templates are used).
+- **Dockerfile:** written but **never built**, because Docker Desktop would not start in this session. Build it locally before the first deploy.
 - **Review:** `docs/REVIEW.md` lists 38 findings. Non-contract ones are applied to `PLAN.md`, `SPEC.md` and the HTML.
 - **Still open, needs the app developer:** `/health` path (finding 2; DEPLOY.md already expects it), app minimum 10 s (10), confidence rescale (14), keep last accepted recording (33), contract edge cases (34), over-limit status (20, proposed 429), Android `audioSource: 'unprocessed'` (35).
 - **Still open, needs the user:** Google's Generative AI health terms (23); legal review before real users (27).
@@ -88,6 +88,11 @@ What the assistant did: read `heart-screening-context.html` in full (project spe
 No application code was written; the user asked for a plan only.
 
 ## Session log (newest first)
+
+### 2026-10-31 — Session 6 — Docker and cloud adapters
+- Added Dockerfile, deploy env files, Firestore rules and indexes, Firebase token verification, `FirestoreRepository` and `GCSBlobStore`, on branch `feat/backend-cloud`.
+- Contract tests run the same checks on memory and emulator stores. They caught recording order differing between stores, and Firestore lock contention causing a 500. Both fixed.
+- Added the `owner_uid` + `created_at` index, which the all-patients history query needs. Check real indexes after first deploy: emulators do not enforce them.
 
 ### 2026-10-31 — Session 5 — real model in the API
 - Added safe ffmpeg decode, real quality checks, `OnnxClassifier` and the confidence rescale, test-first. Trained model ran on 244 real CirCor test recordings through the API code: 183 passed quality, and of those 24 of 30 murmur recordings were flagged, as were 68 of 153 without a murmur.

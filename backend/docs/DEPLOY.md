@@ -96,11 +96,7 @@ Then, in the [Firebase console](https://console.firebase.google.com/):
 gcloud firestore databases create --location=$R --type=firestore-native
 ```
 
-Save this as `backend/lifecycle.json`. It deletes audio after 30 days as a backstop. Change the number if you need a different retention period.
-
-```json
-{ "rule": [ { "action": { "type": "Delete" }, "condition": { "age": 30, "matchesPrefix": ["screenings/"] } } ] }
-```
+`backend/lifecycle.json` deletes audio after 30 days as a backstop. Change the number if you need a different retention period.
 
 ```powershell
 $BUCKET = "$P-data"
@@ -110,42 +106,7 @@ gcloud storage buckets create "gs://$P-ml" --location=$R --uniform-bucket-level-
 
 `--soft-delete-duration=0` is what makes `DELETE` really delete audio. The `-ml` bucket keeps model files; soft delete stays on there as a safety net, and the running service doesn't need access to it.
 
-Add these three files to `backend/`:
-
-`firestore.rules`
-
-```text
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} { allow read, write: if false; }
-  }
-}
-```
-
-`firestore.indexes.json`
-
-```json
-{
-  "indexes": [
-    {
-      "collectionGroup": "screenings",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "owner_uid", "order": "ASCENDING" },
-        { "fieldPath": "created_at", "order": "DESCENDING" }
-      ]
-    }
-  ],
-  "fieldOverrides": []
-}
-```
-
-`firebase.json`
-
-```json
-{ "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" } }
-```
+`backend/` already has `firestore.rules`, `firestore.indexes.json` and `firebase.json`. Deploy them:
 
 ```powershell
 Push-Location backend
@@ -178,47 +139,7 @@ $N = gcloud projects describe $P --format="value(projectNumber)"
 gcloud projects add-iam-policy-binding $P --member="serviceAccount:$N-compute@developer.gserviceaccount.com" --role="roles/run.builder"
 ```
 
-`backend/Dockerfile`
-
-```dockerfile
-FROM python:3.11-slim-bookworm
-
-# ENV=prod is the safe default: staging has to opt out explicitly.
-ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 ENV=prod
-
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg \
-  && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /srv
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY app ./app
-COPY models ./models
-
-RUN useradd --uid 10001 --no-create-home appuser
-USER appuser
-
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]
-```
-
-`models/` must exist for `COPY` to work, so the mock build needs a placeholder file in it.
-
-`backend/.gcloudignore` and `backend/.dockerignore` (same content). Without these, gcloud may skip `models/` or upload local files:
-
-```text
-.git
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-.ruff_cache/
-.env
-sa.json
-local_data/
-tests/
-docs/
-```
+`backend/Dockerfile`, `.dockerignore` and `.gcloudignore` are in the repo. `backend/models/` must hold the model files from `hridai_model.zip`, because the image copies them in.
 
 Check what will be uploaded. `models/` must be listed, and `.env` must not.
 
@@ -246,18 +167,7 @@ gcloud storage cp --recursive "gs://$P-ml/models/<model_version>/*" backend/mode
 
 ### Stage A: mock API for the app developer (B2)
 
-Save as `backend/deploy/staging.env.yaml`:
-
-```yaml
-ENV: "staging"
-AUTH_MODE: "dev"
-DATA_BACKEND: "memory"
-MOCK_INFERENCE: "true"
-MOCK_QUALITY: "true"
-MOCK_SCENARIO: "cycle"
-LOCAL_DATA_DIR: "/tmp/local_data"
-CORS_ORIGINS: "*"
-```
+`backend/deploy/staging.env.yaml` runs the mock API.
 
 ```powershell
 gcloud run deploy heartscreen-api --image=$IMAGE --region=$R --service-account=$SA --allow-unauthenticated --env-vars-file=backend/deploy/staging.env.yaml --cpu=1 --memory=1Gi --concurrency=4 --timeout=60 --min-instances=0 --max-instances=1
@@ -267,24 +177,7 @@ Dev auth is open to anyone with the URL, so share it only with the team and send
 
 ### Stage B: real backend (B3 onward)
 
-Save as `backend/deploy/prod.env.yaml`, using your own project and bucket names. Set the mock flags to `"false"` as each phase lands; the service refuses to start in `prod` while any is `"true"`, so run with `ENV: "staging"` until then.
-
-```yaml
-ENV: "prod"
-AUTH_MODE: "firebase"
-DATA_BACKEND: "firestore"
-MOCK_INFERENCE: "false"
-MOCK_QUALITY: "false"
-MODEL_PATH: "/srv/models/model.onnx"
-GCP_PROJECT: "heartscreen-abc"
-STORAGE_BUCKET: "heartscreen-abc-data"
-GOOGLE_GENAI_USE_VERTEXAI: "true"
-GOOGLE_CLOUD_PROJECT: "heartscreen-abc"
-GOOGLE_CLOUD_LOCATION: "asia-south1"
-GEMINI_MODEL: "gemini-3.5-flash"
-GEMINI_TIMEOUT_S: "15"
-CORS_ORIGINS: ""
-```
+Edit `backend/deploy/prod.env.yaml` and put in your own project and bucket names.
 
 `CORS_ORIGINS` is empty because a native app doesn't use CORS. Add origins only for Expo web. `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` are the `google-genai` SDK's standard settings; these replace `GEMINI_API_KEY`.
 

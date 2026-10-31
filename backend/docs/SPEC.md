@@ -274,7 +274,7 @@ screenings/{screening_id}/reports/{report_id}
   storage_path, mime_type, summary_en, summary_hi, created_at
 ```
 
-Composite indexes needed: `patients` on `owner_uid` + `last_activity_at`; `screenings` on `owner_uid` + `patient_id` + `created_at`.
+Composite indexes needed: `patients` on `owner_uid` + `last_activity_at`; `screenings` on `owner_uid` + `created_at`, and on `owner_uid` + `patient_id` + `created_at`.
 
 ### Cloud Storage
 
@@ -412,6 +412,7 @@ If the image is not a medical report, return report_type "other" and say so.
 | `GOOGLE_CLOUD_LOCATION` | `asia-south1` | SDK setting |
 | `GEMINI_MODEL` | `gemini-3.5-flash` | |
 | `GEMINI_TIMEOUT_S` | `15` | backend addition |
+| `FFMPEG_PATH` | `ffmpeg` | backend addition |
 | `MODEL_PATH` | `/srv/models/model.onnx` | baked into the image |
 | `FUSION_PATH` | unset | backend addition; optional |
 | `MOCK_INFERENCE` | `true` \| `false` | |
