@@ -16,6 +16,10 @@ const COUNTRY_CODE = '+91';
 const PHONE_LENGTH = 10;
 const CODE_LENGTH = 6;
 
+// Demo login, prefilled so testers can sign in without typing.
+const DEMO_PHONE = '5121768301';
+const DEMO_CODE = '145910';
+
 const LOGIN_ERRORS: Record<string, StringKey> = {
   'auth/invalid-phone-number': 'login.badPhone',
   'auth/too-many-requests': 'login.tooMany',
@@ -29,8 +33,8 @@ export default function LoginScreen() {
   const { t } = useScreening();
   const signedIn = useSignedIn();
 
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
+  const [phone, setPhone] = useState(DEMO_PHONE);
+  const [code, setCode] = useState(DEMO_CODE);
   // Wrapped in an object because useState would call a bare function.
   const [pending, setPending] = useState<{ check: CheckCode } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -54,7 +58,7 @@ export default function LoginScreen() {
     setError(null);
     try {
       setPending({ check: await sendCode(`${COUNTRY_CODE}${phone}`) });
-      setCode('');
+      setCode(DEMO_CODE);
     } catch (cause) {
       showError(cause);
     } finally {
@@ -81,7 +85,7 @@ export default function LoginScreen() {
 
   function changeNumber() {
     setPending(null);
-    setCode('');
+    setCode(DEMO_CODE);
     setError(null);
   }
 
