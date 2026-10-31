@@ -1,0 +1,18 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="300" height="200" viewBox="0 0 300 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Torso &#194;&#183; editable illustration" clip-path="url(#clip0_0_50)">
+<path id="Vector" d="M128 7V26C124 50 114 63 89 70C42 84 22 129 22 200H278C278 129 258 84 211 70C186 63 176 50 172 26V7" fill="url(#paint0_linear_0_50)" stroke-width="1.5" stroke="#BDA2A8"/>
+<path id="Vector_2" d="M150 61V77M150 77V182M150 77C134 77 118 73.6667 102 67M150 77C166 77 182 73.6667 198 67M63 108C87.6667 90 113.333 88 140 102M160 102C186.667 88 212.333 90 237 108M62 136C87.3333 120 113.333 118 140 130M160 130C186.667 118 212.667 120 238 136M65 165C90.3333 149 115.333 146.333 140 157M160 157C186.667 146.333 212 149 236 165" stroke-width="1.1" stroke="#D6B9BF"/>
+<path id="Vector_3" d="M128 13C136 22 163 22 172 13" stroke-width="3" stroke-linecap="round" stroke="#FFFCFA"/>
+<path id="Vector_4" d="M31 195C34 140 43 115 63 101" stroke-width="2.4" stroke-linecap="round" stroke="#FFFCFA"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_50" x1="66" y1="18" x2="245" y2="206" gradientUnits="userSpaceOnUse">
+<stop stop-color="#F4DEDF"/>
+<stop offset="0.44" stop-color="#F8EBE9"/>
+<stop offset="1" stop-color="#E9C5CC"/>
+</linearGradient>
+<clipPath id="clip0_0_50">
+<rect width="300" height="200" fill="white"/>
+</clipPath>
+</defs>
+</svg>
