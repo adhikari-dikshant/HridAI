@@ -1,6 +1,6 @@
 # HridAI Backend: Deploy to Google Cloud
 
-> **Status: not yet run.** There's no backend code to deploy yet, and `gcloud` isn't installed on the dev machine. Every `gcloud run deploy` and `gcloud storage buckets create` flag was checked against Google's reference docs, but expect small fixes on the first real run.
+> **Status: live** on `hridai-demo-2026` since 2026-11-01. The live service uses `--cpu=1 --memory=2Gi` and images built with Docker. The Gemini steps here have not been run.
 > Commands are for **PowerShell**. See `REVIEW.md` for the reasons behind these choices.
 
 ## What you'll end up with
