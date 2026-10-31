@@ -89,6 +89,11 @@ No application code was written; the user asked for a plan only.
 
 ## Session log (newest first)
 
+### 2026-10-31 — Session 6 — scalability audit
+- Wrote `docs/SCALABILITY_AUDIT.md` against `dc537b4`. Load-tested the real pipeline on 2 laptop cores with the memory adapters: about 228 screenings/min with no network waits and 0 failures. Firestore, Storage and Firebase client code did not run under load (no emulators here), so cloud figures are estimates until its §11 test runs.
+- Headline: about 12,000 screenings a day once this branch is deployed, about 6,000 after Gemini at concurrency 4, and about 12,000 again at concurrency 10. Nothing is deployed yet, so today's running number is 0.
+- The model is about 10% of CPU. `DEPLOY.md`'s reason for concurrency 4 is wrong, but don't raise it until a CPU limiter covers `quality.check`, features and the model call. No app code or deploy settings changed. Load-test scripts were not added to the repo.
+
 ### 2026-10-31 — Session 6 — Docker and cloud adapters
 - Added Dockerfile, deploy env files, Firestore rules and indexes, Firebase token verification, `FirestoreRepository` and `GCSBlobStore`, on branch `feat/backend-cloud`.
 - Contract tests run the same checks on memory and emulator stores. They caught recording order differing between stores, and Firestore lock contention causing a 500. Both fixed.
